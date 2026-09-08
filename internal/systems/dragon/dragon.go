@@ -65,10 +65,16 @@ var charts = []chart{
 		{Name: "Hottest zone", Query: `max(node_thermal_zone_temp)`},
 		// One query, six lines, named from the type label. Listing the zones
 		// separately would cost six round trips for the same data.
-		{Query: `node_thermal_zone_temp{type=~"` + strings.Join(namedZones, "|") + `"}`},
+		//
+		// "by (type)" is not decoration. The kernel renumbers thermal zones
+		// across boots - msm-skin-thermal has been zone 29, 30 and 31 on this
+		// board - so the zone label forks a fresh series on every reboot and
+		// the raw metric draws one broken line per numbering era.
+		{Query: `max by (type) (node_thermal_zone_temp{type=~"` + strings.Join(namedZones, "|") + `"})`},
 		// temp1 is the drive's own Composite reading. temp2 and temp3 are the
-		// two individual sensors it is derived from.
-		{Name: "Internal SSD", Query: `node_hwmon_temp_celsius{chip="nvme_nvme0",sensor="temp1"}`},
+		// two individual sensors it is derived from. Wrapped in max() for the
+		// same reason as the zones: a named line must be exactly one line.
+		{Name: "Internal SSD", Query: `max(node_hwmon_temp_celsius{chip="nvme_nvme0",sensor="temp1"})`},
 		{Name: "External SSD", Query: externalSSDTemp},
 	}},
 }

@@ -126,6 +126,23 @@ func TestRangeDropsNonFiniteSamples(t *testing.T) {
 	}
 }
 
+// The kernel renumbers thermal zones across boots, so an unaggregated query
+// returns one series per numbering era and the chart draws the same sensor
+// several times under the same name. Every thermals query has to collapse the
+// labels it does not name lines by.
+func TestThermalsQueriesAreAggregated(t *testing.T) {
+	for _, c := range charts {
+		if c.Slug != "thermals" {
+			continue
+		}
+		for _, cs := range c.Series {
+			if !strings.HasPrefix(cs.Query, "max") {
+				t.Errorf("query %q is not aggregated: a reboot would fork it into several lines", cs.Query)
+			}
+		}
+	}
+}
+
 func TestThermalsChartIsNotZeroBased(t *testing.T) {
 	for _, c := range charts {
 		if c.Slug == "thermals" && c.FromZero {

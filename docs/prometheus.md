@@ -73,6 +73,12 @@ it.
 The consequence worth remembering is that `max(node_hwmon_temp_celsius)` is **not** a board figure.
 It includes the internal drive, so it can report the drive while appearing to report the board.
 
+**Aggregate every temperature query.** The kernel renumbers thermal zones across boots, so
+`node_thermal_zone_temp` carries a `zone` label that forks a fresh series on every reboot; the same
+sensor has been zone 29, 30 and 31 within one afternoon. Reading the raw metric draws one broken
+line per numbering era, all under the same name. `max by (type) (...)` stitches them back into the
+one sensor they are.
+
 ### The external USB SSD
 
 One drive is a SCSI disk behind a UAS bridge. It has no hwmon device and no thermal zone, so no
