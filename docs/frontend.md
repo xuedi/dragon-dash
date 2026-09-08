@@ -63,3 +63,21 @@ Bulma class does this" is "there is one", the rule does not get written.
 
 One consequence worth knowing: `navbar-item.is-active` paints a solid block, which is too heavy for
 a light bar, so the active top-level item uses `has-text-weight-semibold has-text-link` instead.
+
+## Chart resizing
+
+uPlot sizes its canvas once at construction, so it has to be told when its column changes width.
+Two triggers, deliberately:
+
+- `window.addEventListener('resize', ...)` is the mechanism. It fires reliably and covers the
+  ordinary case.
+- A `ResizeObserver` on the chart container supplements it, catching layout changes that move the
+  column without moving the window.
+
+The observer is not enough on its own: its callbacks are delivered during the rendering steps, so a
+page that is not actively painting (an offscreen or background tab) receives none. That is also why
+it cannot be verified by resizing a headless window. Test it by changing the container width and
+dispatching a `resize` event.
+
+Both go through one `ddResize()` with a **width guard**. Resizing the canvas can itself trigger the
+observer, and without the guard the two feed each other into a loop.

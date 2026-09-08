@@ -10,7 +10,35 @@
   <script>
   // uPlot rather than Chart.js: a year at 60s resolution is ~525k points, and
   // uPlot is built for that. Chart.js would crawl.
+  const ddEl = document.getElementById('dd-chart');
+  const ddHeight = 340;
   let ddChart = null;
+  let ddWidth = 0;
+
+  function ddDraw(d) {
+    const data = [d.time, ...d.series.map(s => s.data)];
+    if (ddChart) { ddChart.destroy(); }
+    ddWidth = ddEl.clientWidth || 900;
+    ddChart = new uPlot({
+      width: ddWidth, height: ddHeight,
+      scales: {
+        x: { time: true },
+        // Pin the range so a single sample cannot make uPlot auto-range the
+        // axis out to several years.
+        y: { range: (u, min, max) => [Math.min(0, min), Math.max(max, min + 1)] },
+      },
+      series: [{}, ...d.series.map((s, i) => ({
+        label: s.name,
+        stroke: ['#485fc7','#00d1b2','#ffe08a','#f14668'][i % 4],
+        width: 1.5,
+        // A fresh Prometheus has only a handful of samples; without markers a
+        // one-point series draws nothing at all.
+        points: { show: d.time.length <= 60 },
+      }))],
+      axes: [{}, { label: d.unit || '' }],
+    }, data, ddEl);
+  }
+
   function ddLoad() {
     const secs = document.getElementById('dd-range').value;
     const status = document.getElementById('dd-status');
@@ -22,27 +50,7 @@
           status.className = 'tag is-warning'; status.textContent = 'no data';
           return;
         }
-        const data = [d.time, ...d.series.map(s => s.data)];
-        const el = document.getElementById('dd-chart');
-        if (ddChart) { ddChart.destroy(); }
-        ddChart = new uPlot({
-          width: el.clientWidth || 900, height: 340,
-          scales: {
-            x: { time: true },
-            // Pin the range so a single sample cannot make uPlot auto-range
-            // the axis out to several years.
-            y: { range: (u, min, max) => [Math.min(0, min), Math.max(max, min + 1)] },
-          },
-          series: [{}, ...d.series.map((s, i) => ({
-            label: s.name,
-            stroke: ['#485fc7','#00d1b2','#ffe08a','#f14668'][i % 4],
-            width: 1.5,
-            // A fresh Prometheus has only a handful of samples; without
-            // markers a one-point series draws nothing at all.
-            points: { show: d.time.length <= 60 },
-          }))],
-          axes: [{}, { label: d.unit || '' }],
-        }, data, el);
+        ddDraw(d);
         status.className = 'tag is-success is-light';
         status.textContent = d.time.length + ' points';
       })
@@ -51,6 +59,33 @@
         status.textContent = String(e.message || e).slice(0, 120);
       });
   }
+
+  // uPlot sizes its canvas once, so the chart has to be told when its column
+  // changes width.
+  //
+  // The width guard matters: resizing the canvas can itself trigger the
+  // observer, and without it the two feed each other into a loop.
+  function ddResize() {
+    if (!ddChart) return;
+    const w = ddEl.clientWidth;
+    if (!w || w === ddWidth) return;
+    ddWidth = w;
+    ddChart.setSize({ width: w, height: ddHeight });
+  }
+
+  // Two triggers on purpose. The window event covers the ordinary case and
+  // fires reliably. The observer additionally catches layout changes that move
+  // the column without moving the window, but its callbacks are only delivered
+  // while the page is actually rendering, so it is the supplement, not the
+  // mechanism.
+  window.addEventListener('resize', ddResize);
+  if (typeof ResizeObserver !== 'undefined') {
+    const ddObserver = new ResizeObserver(ddResize);
+    ddObserver.observe(ddEl);
+    // Keep a reference: an observer with no strong reference may be collected.
+    window.ddObserver = ddObserver;
+  }
+
   window.addEventListener('DOMContentLoaded', ddLoad);
   if (document.readyState !== 'loading') ddLoad();
   </script>
