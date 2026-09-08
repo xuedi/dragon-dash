@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.4.1-blue)
+![version](https://img.shields.io/badge/version-0.5.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -11,7 +11,8 @@ Built for [dragon](https://docs.radxa.com/en/dragon/q6a), a Radxa Dragon Q6A
 running Arch Linux ARM, but nothing in it is specific to that board.
 
 > **Status: early.** The shell, the settings system and two systems exist and
-> run. Development happens on a desktop; deploying to the server comes later.
+> run, and there are packages to install them with. Expect the interfaces to
+> still move before 1.0.
 
 ## Why it exists
 
@@ -91,9 +92,12 @@ and point Settings at `http://127.0.0.1:9090`.
 
 ### Configuration
 
-One JSON file, `config.json` by default (`-config` to move it), written `0600`
-because it can hold credentials. Deliberately not SQLite: this is configuration,
-not data. Real data belongs in Prometheus.
+Env files and the environment, nothing else: `.env.dist` for committed defaults,
+`.env.local` for credentials, real environment variables winning over both. It is
+**read-only at runtime**, which is the point. With no write path there is no
+settings form to protect, and that is what makes a LAN tool without
+authentication defensible. Details in
+[`docs/configuration.md`](docs/configuration.md).
 
 ## The systems
 
@@ -122,17 +126,40 @@ not mean recompiling.
 Background on why Prometheus rather than InfluxDB, storage sizing, and the
 exporters that were evaluated and rejected: [`docs/fritzbox-metrics.md`](docs/fritzbox-metrics.md).
 
-## Deployment
+## Installing
 
-Not deployed yet. When it is, it will be the same binary cross-compiled:
+Grab a package or a tarball from [releases](https://github.com/xuedi/dragon-dash/releases).
+Every release carries static amd64 and arm64 binaries plus `.deb`, `.rpm` and
+Arch packages, all built from the same commit.
 
 ```bash
-just build-arm    # bin/dragon-dash-arm64, static, ~10 MB
+sudo pacman -U dragon-dash-*-aarch64.pkg.tar.zst   # or dpkg -i / rpm -i
+sudoedit /etc/dragon-dash/dragon-dash.env          # address, Prometheus, FRITZ!Box
+sudo systemctl enable --now dragon-dash
 ```
 
-`deploy/` holds a Compose stack (dragon-dash + Prometheus + node_exporter) that
-publishes `80:8080`. Port 80 is a port mapping, so the process never needs root
-or `CAP_NET_BIND_SERVICE`.
+The package installs a hardened systemd unit that runs as a dedicated
+unprivileged user with the whole filesystem read-only. It needs no writable path
+at all, because the app never writes: configuration is read-only and the history
+lives in Prometheus. `CAP_NET_BIND_SERVICE` is granted so `DD_CORE_ADDR=:80`
+works without root.
+
+Building from source instead is `just build-arm`, a static arm64 binary with no
+cgo, so the target needs no toolchain. `deploy/` also holds a Compose stack for
+hosts where containers are preferred.
+
+dragon-dash stores nothing itself, so a full deployment is three services:
+node_exporter and dragon-dash's own `/metrics` are scraped by Prometheus, and
+dragon-dash queries Prometheus back to draw the pages. Both exporters are
+packaged for aarch64, so none of it needs containers. See
+[`docs/deployment.md`](docs/deployment.md).
+
+## Releases
+
+`internal/version/version.go` is the source of truth, mirrored by the badge above
+and by the git tag. `just release 0.5.0` checks all three agree on a clean `main`,
+then tags and pushes; GoReleaser builds and publishes the rest from CI. A running
+binary identifies itself with `dragon-dash -version` and in the sidebar.
 
 ## Security
 

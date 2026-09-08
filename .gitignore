@@ -4,6 +4,7 @@
 
 # build output
 /bin/
+/dist/
 /dragon-dash
 
 # runtime state, config.json holds credentials, never commit it
