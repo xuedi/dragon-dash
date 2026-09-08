@@ -4,6 +4,30 @@
   markup being written twice, not to build a widget library.
 */}}
 
+{{/*
+  page-top is the infobar every page carries: context on the left separated by
+  pipes, actions on the right. Having one fixed shape is what stops each page
+  inventing its own header.
+
+  Expects: .Title (string), .Info ([]template.HTML), .Actions ([]template.HTML)
+*/}}
+{{define "page-top"}}
+<div class="box">
+  <div class="level is-mobile">
+    <div class="level-left">
+      {{if .Title}}<div class="level-item"><span class="title is-5 mb-0">{{.Title}}</span></div>{{end}}
+      {{range .Info}}
+        <div class="level-item has-text-grey-light">|</div>
+        <div class="level-item">{{.}}</div>
+      {{end}}
+    </div>
+    <div class="level-right">
+      {{range .Actions}}<div class="level-item">{{.}}</div>{{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+
 {{/* stat-card expects: .Label .Display .Sub .OK */}}
 {{define "stat-card"}}
 <div class="cell">

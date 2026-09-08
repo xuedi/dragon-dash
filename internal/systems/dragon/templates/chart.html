@@ -1,33 +1,11 @@
 {{define "chart"}}
-<h1 class="title is-4">{{.Title}}</h1>
+{{template "page-top" .Top}}
 
 {{if .Unconfigured}}
-  <div class="notification is-warning">
-    <strong>Prometheus is not configured.</strong> Set its URL in <a href="/settings">Settings</a>.
-  </div>
+  {{template "notice" (dict "Kind" "warning" "Title" "Prometheus is not configured"
+      "Body" "Set DD_CORE_PROMETHEUS_URL to draw this chart.")}}
 {{else}}
-  <div class="field is-grouped mb-4">
-    <div class="control">
-      <div class="select is-small">
-        <select id="dd-range" onchange="ddLoad()">
-          <option value="3600" selected>last hour</option>
-          <option value="21600">last 6 hours</option>
-          <option value="86400">last day</option>
-          <option value="604800">last week</option>
-          <option value="2592000">last 30 days</option>
-          <option value="31536000">last year</option>
-        </select>
-      </div>
-    </div>
-    <div class="control"><span id="dd-status" class="tag is-light">loading…</span></div>
-  </div>
-
   <div class="box"><div id="dd-chart"></div></div>
-
-  <details class="mt-4">
-    <summary class="is-size-7 has-text-grey">PromQL</summary>
-    <pre class="is-size-7 mt-2">{{.Query}}</pre>
-  </details>
 
   <script>
   // uPlot rather than Chart.js: a year at 60s resolution is ~525k points, and
@@ -36,23 +14,23 @@
   function ddLoad() {
     const secs = document.getElementById('dd-range').value;
     const status = document.getElementById('dd-status');
-    status.className = 'tag is-light'; status.textContent = 'loading…';
+    status.className = 'tag is-light'; status.textContent = 'loading';
     fetch('/s/dragon/api/range?metric={{.Metric}}&window=' + secs)
       .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t))))
       .then(d => {
         if (!d.time || d.time.length === 0) {
-          status.className = 'tag is-warning'; status.textContent = 'no data in this range';
+          status.className = 'tag is-warning'; status.textContent = 'no data';
           return;
         }
         const data = [d.time, ...d.series.map(s => s.data)];
         const el = document.getElementById('dd-chart');
         if (ddChart) { ddChart.destroy(); }
         ddChart = new uPlot({
-          width: el.clientWidth || 900, height: 320,
+          width: el.clientWidth || 900, height: 340,
           scales: {
             x: { time: true },
-            // Pin the requested window so a single sample cannot make uPlot
-            // auto-range the axis out to several years.
+            // Pin the range so a single sample cannot make uPlot auto-range
+            // the axis out to several years.
             y: { range: (u, min, max) => [Math.min(0, min), Math.max(max, min + 1)] },
           },
           series: [{}, ...d.series.map((s, i) => ({
@@ -65,12 +43,12 @@
           }))],
           axes: [{}, { label: d.unit || '' }],
         }, data, el);
-        status.className = 'tag is-success';
+        status.className = 'tag is-success is-light';
         status.textContent = d.time.length + ' points';
       })
       .catch(e => {
         status.className = 'tag is-danger';
-        status.textContent = String(e.message || e).slice(0, 200);
+        status.textContent = String(e.message || e).slice(0, 120);
       });
   }
   window.addEventListener('DOMContentLoaded', ddLoad);

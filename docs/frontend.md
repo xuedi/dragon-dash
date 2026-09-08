@@ -32,3 +32,34 @@ about 50 KB; Chart.js would struggle. Chart data is fetched as JSON from the own
 
 Bulma 1.0 exposes CSS custom properties (`--bulma-border`, `--bulma-text-weak`, and so on). The
 floor plan SVG uses those rather than fixed colours, so it follows the theme instead of fighting it.
+
+## Page shape
+
+Every page is assembled from stock Bulma, in the same order, so no page invents its own header:
+
+```
+navbar has-shadow  >  container
+section > container > columns
+    column is-2   aside.menu   sidebar, contributed by the active system
+    column is-10  page body
+```
+
+The body always opens with the **page-top infobar**: a `box` containing a `level`, with the page
+title and context items separated by pipes on the left, and actions on the right. It is built in Go
+as a `system.PageTop`, not in the template, so a page cannot drift into a bespoke header.
+
+Action order, left to right: state-changing buttons first, filters next, navigation last. On a
+chart page that means the sample count, then the range selector.
+
+## Custom CSS
+
+Ten lines, all of them Bulma's own custom properties (`--bulma-family-primary`, `--bulma-radius`,
+`--bulma-body-background-color`). There is not a single selector override, so a Bulma upgrade cannot
+silently break the layout.
+
+Spacing comes from `section`, `container` and `columns`; emphasis comes from helper classes
+(`has-text-weight-semibold`, `has-text-link`, `is-size-7`, `has-text-grey`). If the answer to "which
+Bulma class does this" is "there is one", the rule does not get written.
+
+One consequence worth knowing: `navbar-item.is-active` paints a solid block, which is too heavy for
+a light bar, so the active top-level item uses `has-text-weight-semibold has-text-link` instead.

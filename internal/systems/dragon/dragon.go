@@ -76,6 +76,7 @@ type statCard struct {
 }
 
 type overviewData struct {
+	Top          system.PageTop
 	Stats        []statCard
 	Err          string
 	Unconfigured bool
@@ -94,19 +95,38 @@ func (d *Dragon) Render(slug string, r *http.Request) (template.HTML, error) {
 }
 
 func (d *Dragon) renderChart(c chart) (template.HTML, error) {
+	top := system.PageTop{Title: c.Title}
+	top.Infof(`<code class="is-size-7">%s</code>`, template.HTMLEscapeString(c.Query))
+	top.Actionf(`<span id="dd-status" class="tag is-light">loading</span>`)
+	top.Actionf(`<div class="select is-small">
+      <select id="dd-range" onchange="ddLoad()">
+        <option value="3600" selected>last hour</option>
+        <option value="21600">last 6 hours</option>
+        <option value="86400">last day</option>
+        <option value="604800">last week</option>
+        <option value="2592000">last 30 days</option>
+        <option value="31536000">last year</option>
+      </select></div>`)
+
 	return d.exec("chart", struct {
-		Title, Metric, Query string
-		Unconfigured         bool
+		Top          system.PageTop
+		Title        string
+		Metric       string
+		Unconfigured bool
 	}{
+		Top:          top,
 		Title:        c.Title,
 		Metric:       c.Slug,
-		Query:        c.Query,
 		Unconfigured: d.deps.PromURL() == "",
 	})
 }
 
 func (d *Dragon) renderOverview(r *http.Request) (template.HTML, error) {
 	data := overviewData{Unconfigured: d.deps.PromURL() == ""}
+	data.Top = system.PageTop{Title: "Overview"}
+	if url := d.deps.PromURL(); url != "" {
+		data.Top.Infof(`<span class="has-text-grey is-size-7">%s</span>`, template.HTMLEscapeString(url))
+	}
 	if data.Unconfigured {
 		return d.exec("overview", data)
 	}

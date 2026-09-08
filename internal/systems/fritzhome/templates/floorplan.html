@@ -1,5 +1,5 @@
 {{define "floorplan"}}
-<h1 class="title is-4">Floor plan</h1>
+{{template "page-top" .Top}}
 
 {{if not .HasPlan}}
   <div class="notification is-info is-light">
@@ -53,12 +53,5 @@
   </svg>
 </div>
 
-<div class="level is-mobile">
-  <div class="level-left">
-    <span class="tag is-primary is-light mr-2">teal</span><span class="is-size-7 has-text-grey mr-4">power, watts</span>
-    <span class="tag is-link is-light mr-2">indigo</span><span class="is-size-7 has-text-grey mr-4">temperature</span>
-    <span class="tag is-danger is-light mr-2">red</span><span class="is-size-7 has-text-grey">doors, and unreachable devices</span>
-  </div>
-</div>
 {{end}}
 {{end}}

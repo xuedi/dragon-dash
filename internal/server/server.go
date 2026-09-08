@@ -31,7 +31,7 @@ type Server struct {
 }
 
 func New(cfg *config.Config, log *slog.Logger, files []string) (*Server, error) {
-	tmpl, err := template.New("").Funcs(template.FuncMap{"dict": dict}).
+	tmpl, err := template.New("").Funcs(system.FuncMap()).
 		ParseFS(web.Templates, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
@@ -288,22 +288,4 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 // contextWithTimeout keeps the metrics handler readable.
 func contextWithTimeout(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(r.Context(), d)
-}
-
-// dict builds a map inline so a component can be called with named arguments:
-//
-//	{{template "notice" (dict "Kind" "danger" "Body" .Err)}}
-func dict(pairs ...any) (map[string]any, error) {
-	if len(pairs)%2 != 0 {
-		return nil, fmt.Errorf("dict needs an even number of arguments, got %d", len(pairs))
-	}
-	m := make(map[string]any, len(pairs)/2)
-	for i := 0; i < len(pairs); i += 2 {
-		k, ok := pairs[i].(string)
-		if !ok {
-			return nil, fmt.Errorf("dict key %d is not a string", i)
-		}
-		m[k] = pairs[i+1]
-	}
-	return m, nil
 }

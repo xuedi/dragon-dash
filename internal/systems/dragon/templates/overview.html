@@ -1,16 +1,14 @@
 {{define "overview"}}
-<h1 class="title is-4">Dragon</h1>
+{{template "page-top" .Top}}
 
 {{if .Unconfigured}}
-  <div class="notification is-warning">
-    <strong>Prometheus is not configured.</strong>
-    Set its URL in <a href="/settings">Settings</a>, every value on this page comes from there.
-  </div>
+  {{template "notice" (dict "Kind" "warning" "Title" "Prometheus is not configured"
+      "Body" "Set DD_CORE_PROMETHEUS_URL. Every value on this page comes from there.")}}
 {{else if .Err}}
-  <div class="notification is-danger"><strong>Could not read metrics.</strong><br>{{.Err}}</div>
+  {{template "notice" (dict "Kind" "danger" "Title" "Could not read metrics" "Body" .Err)}}
 {{end}}
 
-<div class="fixed-grid has-4-cols">
+<div class="fixed-grid has-3-cols">
   <div class="grid">
     {{range .Stats}}{{template "stat-card" .}}{{end}}
   </div>

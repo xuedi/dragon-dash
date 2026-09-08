@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.3.0-blue)
+![version](https://img.shields.io/badge/version-0.4.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -73,7 +73,7 @@ There is no third step. Navigation, routing and the settings form follow.
 ## Running it
 
 ```bash
-just run          # http://127.0.0.1:8080
+just run          # http://127.0.0.1:9494
 just run-lan      # reachable from other machines
 just check        # gofmt, vet, tests
 ```

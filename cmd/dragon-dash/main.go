@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", envOr("DRAGON_DASH_ADDR", "127.0.0.1:8080"),
+	addr := flag.String("addr", envOr("DRAGON_DASH_ADDR", "127.0.0.1:9494"),
 		"listen address; use :8080 to accept connections from the LAN")
 	envFiles := flag.String("env", ".env.dist,.env.local",
 		"comma-separated env files, later ones win; the real environment wins over all")

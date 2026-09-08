@@ -192,12 +192,12 @@ type deviceRow struct {
 
 func (f *FritzHome) renderOverview(r *http.Request) (template.HTML, error) {
 	data := struct {
+		Top          system.PageTop
 		Devices      []deviceRow
 		Err          string
 		Unconfigured bool
-		TotalPower   string
-		Age          string
 	}{Unconfigured: !f.configured()}
+	data.Top = system.PageTop{Title: "Devices"}
 
 	if data.Unconfigured {
 		return f.exec("overview", data)
@@ -241,10 +241,13 @@ func (f *FritzHome) renderOverview(r *http.Request) (template.HTML, error) {
 		}
 		data.Devices = append(data.Devices, row)
 	}
-	data.TotalPower = fmt.Sprintf("%.1f W", total)
 	f.mu.Lock()
-	data.Age = time.Since(f.cachedAt).Round(time.Second).String()
+	age := time.Since(f.cachedAt).Round(time.Second)
 	f.mu.Unlock()
+
+	data.Top.Infof(`<span class="has-text-grey is-size-7">%d devices</span>`, len(devices))
+	data.Top.Infof(`<span class="has-text-grey is-size-7">read %s ago</span>`, age)
+	data.Top.Actionf(`<span class="tag is-primary is-medium">%.1f W total</span>`, total)
 	return f.exec("overview", data)
 }
 
@@ -302,6 +305,7 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 		Known                       bool
 	}
 	data := struct {
+		Top     system.PageTop
 		HasPlan bool
 		Example string
 		W, H    int
@@ -311,6 +315,10 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 		Doors   []door
 		Devices []dev
 	}{Example: examplePlan, W: 800, H: 500}
+	data.Top = system.PageTop{Title: "Floor plan"}
+	data.Top.Infof(`<span class="tag is-primary is-light">power</span>`)
+	data.Top.Infof(`<span class="tag is-link is-light">temperature</span>`)
+	data.Top.Infof(`<span class="tag is-danger is-light">doors</span>`)
 
 	raw, err := f.planJSON()
 	if err != nil {

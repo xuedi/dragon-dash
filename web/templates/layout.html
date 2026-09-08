@@ -9,8 +9,9 @@
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/uPlot.iife.min.js" defer></script>
 <style>
-  /* Bulma's own theming hooks. Everything else on the page is a stock Bulma
-     component, so there are no selector overrides to break on an upgrade. */
+  /* Bulma's own theming hooks only. The page is assembled from stock
+     components (section, container, columns, menu, box, level), so there is
+     nothing here that can drift out of step with a Bulma upgrade. */
   :root {
     --bulma-family-primary: Inter, "SF Pro", "Segoe UI", Roboto, Oxygen, Ubuntu,
       "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -23,42 +24,49 @@
 <body>
 
 <nav class="navbar has-shadow" role="navigation" aria-label="main navigation">
-  <div class="navbar-brand">
-    <a class="navbar-item has-text-weight-bold" href="/">dragon-dash</a>
-  </div>
-  <div class="navbar-menu is-active">
-    <div class="navbar-start">
-      {{range .Systems}}
-        <a class="navbar-item {{if .Active}}is-active has-text-weight-semibold{{end}}" href="/s/{{.ID}}/">{{.Title}}</a>
-      {{end}}
+  <div class="container">
+    <div class="navbar-brand">
+      <a class="navbar-item has-text-weight-bold" href="/">dragon-dash</a>
     </div>
-    <div class="navbar-end">
-      <span class="navbar-item is-size-7 has-text-grey">v{{.Version}}</span>
-      <a class="navbar-item {{if .SettingsActive}}is-active has-text-weight-semibold{{end}}" href="/settings">Settings</a>
+    <div class="navbar-menu is-active">
+      <div class="navbar-start">
+        {{range .Systems}}
+          <a class="navbar-item {{if .Active}}has-text-weight-semibold has-text-link{{end}}" href="/s/{{.ID}}/">{{.Title}}</a>
+        {{end}}
+      </div>
+      <div class="navbar-end">
+        <a class="navbar-item {{if .SettingsActive}}has-text-weight-semibold has-text-link{{end}}" href="/settings">Settings</a>
+      </div>
     </div>
   </div>
 </nav>
 
-<div class="columns is-gapless">
-  {{if .Nav}}
-  <div class="column is-2 p-4 has-background-white">
-    <aside class="menu">
-      <p class="menu-label">{{.ActiveTitle}}</p>
-      <ul class="menu-list">
-        {{range .Nav}}
-          <li><a href="{{.Href}}" class="{{if .Active}}is-active{{end}}">{{.Title}}</a></li>
+<section class="section">
+  <div class="container">
+    <div class="columns">
+      {{if .Nav}}
+      <div class="column is-2">
+        <aside class="menu">
+          <p class="menu-label">{{.ActiveTitle}}</p>
+          <ul class="menu-list">
+            {{range .Nav}}
+              <li><a href="{{.Href}}" class="{{if .Active}}is-active{{end}}">{{.Title}}</a></li>
+            {{end}}
+          </ul>
+          <p class="menu-label">Build</p>
+          <p class="has-text-grey px-3 is-size-7">dragon-dash v{{.Version}}</p>
+        </aside>
+      </div>
+      {{end}}
+      <div class="column {{if .Nav}}is-10{{end}}">
+        {{if .Error}}
+          {{template "notice" (dict "Kind" "danger" "Title" .PageTitle "Body" .Error)}}
         {{end}}
-      </ul>
-    </aside>
+        {{.Body}}
+      </div>
+    </div>
   </div>
-  {{end}}
-  <main class="column p-5">
-    {{if .Error}}
-      {{template "notice" (dict "Kind" "danger" "Title" .PageTitle "Body" .Error)}}
-    {{end}}
-    {{.Body}}
-  </main>
-</div>
+</section>
 
 </body>
 </html>{{end}}

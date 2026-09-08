@@ -5,13 +5,13 @@ app := "dragon-dash"
 default:
     @just --list
 
-# Run locally on http://127.0.0.1:8080
+# Run locally on http://127.0.0.1:9494
 run *ARGS:
-    go run ./cmd/{{app}} -addr 127.0.0.1:8080 {{ARGS}}
+    go run ./cmd/{{app}} -addr 127.0.0.1:9494 {{ARGS}}
 
 # Run and accept connections from the LAN (to view from another machine)
 run-lan:
-    go run ./cmd/{{app}} -addr 0.0.0.0:8080
+    go run ./cmd/{{app}} -addr 0.0.0.0:9494
 
 build:
     go build -trimpath -ldflags="-s -w" -o bin/{{app}} ./cmd/{{app}}

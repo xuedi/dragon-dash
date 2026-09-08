@@ -11,7 +11,7 @@ scrape_configs:
   # dragon-dash itself, which collects the FRITZ!Box smart home data.
   - job_name: dragon-dash
     static_configs:
-      - targets: ["127.0.0.1:8080"]
+      - targets: ["127.0.0.1:9494"]
 
   - job_name: prometheus
     static_configs:

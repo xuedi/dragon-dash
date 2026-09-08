@@ -13,6 +13,7 @@ package system
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -113,11 +114,33 @@ type Collector interface {
 	Collect(ctx context.Context) ([]Metric, error)
 }
 
+// FuncMap is the template helper set shared by the shell and every system.
+func FuncMap() template.FuncMap { return template.FuncMap{"dict": Dict} }
+
+// Dict builds a map inline so a component can be called with named arguments:
+//
+//	{{template "notice" (dict "Kind" "danger" "Body" .Err)}}
+func Dict(pairs ...any) (map[string]any, error) {
+	if len(pairs)%2 != 0 {
+		return nil, fmt.Errorf("dict needs an even number of arguments, got %d", len(pairs))
+	}
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		k, ok := pairs[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict key %d is not a string", i)
+		}
+		m[k] = pairs[i+1]
+	}
+	return m, nil
+}
+
 // Templates parses a system's own templates together with the shared
 // components, so any system can use {{template "stat-card" .}} without
 // redeclaring it.
 func Templates(fsys fs.FS, patterns ...string) (*template.Template, error) {
-	t, err := template.ParseFS(web.Components, "templates/components.html")
+	t, err := template.New("").Funcs(FuncMap()).
+		ParseFS(web.Components, "templates/components.html")
 	if err != nil {
 		return nil, err
 	}
@@ -132,4 +155,26 @@ func MustTemplates(fsys fs.FS, patterns ...string) *template.Template {
 		panic(err)
 	}
 	return t
+}
+
+// PageTop is the infobar every page carries: a title, context items shown
+// left and separated by pipes, and actions on the right. Building it in Go
+// rather than in the template keeps the markup in one place.
+type PageTop struct {
+	Title   string
+	Info    []template.HTML
+	Actions []template.HTML
+}
+
+// Infof appends a formatted context item. The format string is trusted markup
+// written by a system; interpolate user or device data with template.HTMLEscape
+// first if it could contain markup.
+func (p *PageTop) Infof(format string, args ...any) {
+	p.Info = append(p.Info, template.HTML(fmt.Sprintf(format, args...)))
+}
+
+// Actionf appends a formatted action, rendered right-aligned in declaration
+// order: state-changing buttons first, filters next, navigation last.
+func (p *PageTop) Actionf(format string, args ...any) {
+	p.Actions = append(p.Actions, template.HTML(fmt.Sprintf(format, args...)))
 }
