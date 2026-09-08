@@ -28,6 +28,13 @@
     };
   }
 
+  // Nine entries because the Thermals chart draws nine lines: the hottest
+  // zone, six named board zones and the two SSDs.
+  const ddPalette = [
+    '#485fc7','#00d1b2','#f14668','#ffb238','#3e8ed0',
+    '#48c78e','#9b5de5','#ff7043','#8a8a8a',
+  ];
+
   function ddDraw(d) {
     ddData = d;
     const theme = ddTheme();
@@ -43,13 +50,21 @@
       width: ddWidth, height: ddHeight,
       scales: {
         x: { time: true },
-        // Pin the range so a single sample cannot make uPlot auto-range the
-        // axis out to several years.
-        y: { range: (u, min, max) => [Math.min(0, min), Math.max(max, min + 1)] },
+        // Percentages start at zero, where the distance from zero is the
+        // point. Temperatures do not: a whole board sits within a few degrees
+        // of itself, and a zero based axis would stack every line into one.
+        // Either way the range is pinned, so a single sample cannot make
+        // uPlot auto-range the axis out to several years.
+        y: { range: (u, min, max) => {
+          if (min == null || max == null) return [0, 1];
+          if (d.fromZero) return [Math.min(0, min), Math.max(max, min + 1)];
+          const pad = Math.max((max - min) * 0.1, 0.5);
+          return [min - pad, max + pad];
+        } },
       },
       series: [{}, ...d.series.map((s, i) => ({
         label: s.name,
-        stroke: ['#485fc7','#00d1b2','#ffe08a','#f14668'][i % 4],
+        stroke: ddPalette[i % ddPalette.length],
         width: 1.5,
         // A fresh Prometheus has only a handful of samples; without markers a
         // one-point series draws nothing at all.
@@ -72,7 +87,9 @@
         }
         ddDraw(d);
         status.className = 'tag is-success is-light';
-        status.textContent = d.time.length + ' points';
+        status.textContent = d.series.length > 1
+          ? d.series.length + ' series, ' + d.time.length + ' points'
+          : d.time.length + ' points';
       })
       .catch(e => {
         status.className = 'tag is-danger';

@@ -28,6 +28,17 @@ A year of data at 60-second resolution is roughly 500,000 points. uPlot is built
 about 50 KB; Chart.js would struggle. Chart data is fetched as JSON from the owning system's
 `/s/<id>/api/` subtree.
 
+A chart draws either one line or several. Several is not only a query returning several series, as
+the filesystem chart does with one line per mount point; a chart may also declare a list of named
+queries, which is how Thermals puts the board's zones and both SSDs on one pair of axes even though
+they live in different metrics. Two details make that readable rather than a tangle:
+
+- **The axis is not always zero based.** Percentages start at zero, where the distance from zero is
+  the point. Temperatures do not: a whole board sits within a few degrees of itself, and a zero
+  based axis would stack every line on top of every other.
+- **A missing sample is `null`, never zero**, so a series that starts late or drops out draws a gap.
+  uPlot's legend also toggles a line on click, which is the cheap answer to a crowded chart.
+
 ## Theming
 
 Bulma 1.0 exposes CSS custom properties (`--bulma-border`, `--bulma-text-weak`, and so on). The

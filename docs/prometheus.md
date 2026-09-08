@@ -43,6 +43,67 @@ than an hour:
 step := time.Duration(window/800) * time.Second
 ```
 
+A chart is one query or several. Where a chart draws several lines they are aligned **by timestamp,
+not by index**: the queries share a start, end and step, so Prometheus returns the same grid, but a
+series with no data for part of the window is missing those points entirely. A sample with no value
+is sent to the browser as `null` and drawn as a gap, never as zero.
+
 Server metrics assume `prometheus-node-exporter`. Smart home metrics are **discovered** rather than
 hardcoded, because exact names depend on the exporter version and which devices are paired. See
 [fritzbox-metrics.md](fritzbox-metrics.md).
+
+## Temperatures
+
+Three different metrics carry temperatures, and picking the wrong one is a silent mistake rather
+than an error.
+
+| Metric | Covers | Names things as |
+|---|---|---|
+| `node_thermal_zone_temp` | every kernel thermal zone | `type="cpuss0-thermal"`, the kernel's own name |
+| `node_hwmon_temp_celsius` | the same zones **and** any hwmon chip, such as an NVMe drive | `chip="thermal_thermal_zone31"`, an opaque index |
+| `smartctl_device_temperature` | drives readable only over SMART | `device="/dev/sda"` |
+
+node_exporter publishes the board's thermal zones twice, once through each of the first two
+collectors. Only `node_thermal_zone_temp` names them, so that is what the per-component lines on
+the Thermals chart and the "hottest zone" figure both read. `node_hwmon_temp_celsius` is used for
+exactly one thing: the internal NVMe drive, which is a hwmon chip and not a thermal zone. Its
+`temp1` sensor is the drive's own Composite reading; `temp2` and `temp3` are the two sensors behind
+it.
+
+The consequence worth remembering is that `max(node_hwmon_temp_celsius)` is **not** a board figure.
+It includes the internal drive, so it can report the drive while appearing to report the board.
+
+### The external USB SSD
+
+One drive is a SCSI disk behind a UAS bridge. It has no hwmon device and no thermal zone, so no
+node_exporter collector can ever see it, and its temperature is only reachable by tunnelling NVMe
+admin commands through the bridge:
+
+```
+smartctl -d sntasmedia -A /dev/sda
+```
+
+**dragon-dash does not run that itself.** It runs as a hardened non-root service and the command
+needs root, so reading SMART here would mean granting the dashboard a privilege it lives without
+today. The FRITZ!Box is not a precedent: that is an HTTP poll of a network device, not a privileged
+local syscall.
+
+The reading arrives the same way as everything else, through Prometheus. A node_exporter **textfile
+collector** on the server, run by a timer, writes:
+
+```
+smartctl_device_temperature{device="/dev/sda",temperature_type="current"} 31
+```
+
+That name and those labels are `smartctl_exporter`'s, deliberately, rather than a private
+invention: if the drive count ever grows enough to justify the real exporter, swapping the script
+for it changes no query here. The collector publishes exactly one drive, so the dashboard reads
+`max(smartctl_device_temperature{temperature_type="current"})`; an exporter covering both drives
+would need a `device` filter instead.
+
+A textfile collector must **not** write into `node_hwmon_temp_celsius` or `node_thermal_zone_temp`.
+Those namespaces belong to node_exporter, and a collision there would quietly change what the
+existing queries mean.
+
+Until that collector exists the metric is simply absent, which is a supported state everywhere: the
+overview card shows a dash and the chart omits the line.
