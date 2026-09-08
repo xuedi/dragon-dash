@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.2.0-blue)
+![version](https://img.shields.io/badge/version-0.3.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -114,8 +114,10 @@ there is no separate exporter to run and the credentials live in one place. The
 page shows the live reading; the same reading is published at `/metrics` for
 Prometheus to keep as history.
 
-Includes a **floor plan**: rooms as polygons, devices as points, both stored as
-JSON in Settings and rendered as SVG. Redrawing the flat does not mean recompiling.
+Includes a **floor plan**: the outer wall, rooms, interior walls and doors as
+SVG geometry, with devices placed by AIN and showing their live reading. It is
+a JSON file (`DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE`), so redrawing the flat does
+not mean recompiling.
 
 Background on why Prometheus rather than InfluxDB, storage sizing, and the
 exporters that were evaluated and rejected: [`docs/fritzbox-metrics.md`](docs/fritzbox-metrics.md).

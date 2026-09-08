@@ -16,3 +16,6 @@
 
 # local secrets
 .env.local
+
+# personal flat layout
+/floorplan.json

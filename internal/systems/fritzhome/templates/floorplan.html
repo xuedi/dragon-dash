@@ -4,25 +4,61 @@
 {{if not .HasPlan}}
   <div class="notification is-info is-light">
     <p><strong>No floor plan defined yet.</strong></p>
-    <p class="mt-2">The plan is data, not code: rooms are polygons and devices are points, both
-      stored as JSON in Settings. Sketch your apartment and the rooms and device positions can be
-      filled in, nothing here needs recompiling.</p>
+    <p class="mt-2">The plan is data, not code: rooms are polygons, devices are placed by AIN.
+      Point <code>DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE</code> at a JSON file.</p>
     <pre class="mt-3 is-size-7">{{.Example}}</pre>
   </div>
-{{end}}
-
+{{else}}
 <div class="box">
-  <svg viewBox="0 0 {{.W}} {{.H}}" style="width:100%;max-height:70vh" role="img" aria-label="apartment floor plan">
+  <svg viewBox="0 0 {{.W}} {{.H}}" style="width:100%;max-height:75vh" role="img"
+       aria-label="apartment floor plan with live sensor readings">
+
     {{range .Rooms}}
-      <polygon points="{{.Points}}" fill="var(--bulma-scheme-main-ter)" stroke="var(--bulma-border)" stroke-width="2"/>
-      <text x="{{.LabelX}}" y="{{.LabelY}}" font-size="14" fill="var(--bulma-text-weak)">{{.Name}}</text>
+      <polygon points="{{.Points}}" fill="hsl(221, 14%, 97%)" stroke="none"/>
     {{end}}
+
+    {{if .Outline}}
+      <polygon points="{{.Outline}}" fill="none" stroke="hsl(221, 14%, 29%)"
+               stroke-width="6" stroke-linejoin="round"/>
+    {{end}}
+
+    {{range .Walls}}
+      <polyline points="{{.}}" fill="none" stroke="hsl(221, 14%, 45%)"
+                stroke-width="3" stroke-linecap="round"/>
+    {{end}}
+
+    {{/* Doors sit on top of the walls they interrupt, so they read as gaps. */}}
+    {{range .Doors}}
+      <line x1="{{.X1}}" y1="{{.Y1}}" x2="{{.X2}}" y2="{{.Y2}}"
+            stroke="hsl(348, 86%, 61%)" stroke-width="5" stroke-linecap="round"/>
+    {{end}}
+
+    {{range .Rooms}}
+      <text x="{{.LabelX}}" y="{{.LabelY}}" font-size="15" fill="hsl(221, 14%, 55%)"
+            font-family="Inter, sans-serif">{{.Name}}</text>
+    {{end}}
+
     {{range .Devices}}
-      <circle cx="{{.X}}" cy="{{.Y}}" r="10" fill="{{.Colour}}" stroke="white" stroke-width="2">
-        <title>{{.Name}}: {{.Value}}</title>
-      </circle>
-      <text x="{{.X}}" y="{{.LabelY}}" font-size="11" text-anchor="middle" fill="var(--bulma-text)">{{.Value}}</text>
+      <g>
+        <circle cx="{{.X}}" cy="{{.Y}}" r="26" fill="{{.Colour}}" opacity="0.16"/>
+        <circle cx="{{.X}}" cy="{{.Y}}" r="19" fill="{{.Colour}}"/>
+        <text x="{{.X}}" y="{{.ValueY}}" font-size="13" font-weight="700" fill="#fff"
+              text-anchor="middle" font-family="Inter, sans-serif">{{.Value}}</text>
+        <text x="{{.X}}" y="{{.LabelY}}" font-size="13" fill="hsl(221, 14%, 29%)"
+              text-anchor="middle" font-family="Inter, sans-serif">{{.Name}}</text>
+        {{if .Unit}}<text x="{{.X}}" y="{{.UnitY}}" font-size="11" fill="hsl(221, 14%, 55%)"
+              text-anchor="middle" font-family="Inter, sans-serif">{{.Unit}}</text>{{end}}
+      </g>
     {{end}}
   </svg>
 </div>
+
+<div class="level is-mobile">
+  <div class="level-left">
+    <span class="tag is-primary is-light mr-2">teal</span><span class="is-size-7 has-text-grey mr-4">power, watts</span>
+    <span class="tag is-link is-light mr-2">indigo</span><span class="is-size-7 has-text-grey mr-4">temperature</span>
+    <span class="tag is-danger is-light mr-2">red</span><span class="is-size-7 has-text-grey">doors, and unreachable devices</span>
+  </div>
+</div>
+{{end}}
 {{end}}

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -72,8 +73,10 @@ func (f *FritzHome) ConfigSchema() []system.ConfigField {
 		{Key: "password", Label: "Password", Kind: system.KindPassword, Secret: true},
 		{Key: "interval", Label: "Poll interval", Kind: system.KindText, Default: "60s",
 			Help: "How long a reading is reused before the box is asked again."},
+		{Key: "floorplan_file", Label: "Floor plan file", Kind: system.KindText,
+			Help: "Path to a JSON floor plan. Preferred over the inline value: a traced plan is too long for an environment variable."},
 		{Key: "floorplan", Label: "Floor plan (JSON)", Kind: system.KindText,
-			Help: "Rooms as polygons, devices placed by AIN. Empty until the layout is drawn."},
+			Help: "Inline alternative to the file above."},
 	}
 }
 
@@ -245,13 +248,26 @@ func (f *FritzHome) renderOverview(r *http.Request) (template.HTML, error) {
 	return f.exec("overview", data)
 }
 
+// plan is the on-disk floor plan. Deliberately plain geometry so it can be
+// traced from a sketch by hand: SVG polygon/polyline point strings, and
+// devices placed by AIN so the drawing never repeats a device name.
 type plan struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
-	Rooms  []struct {
-		Name   string `json:"name"`
-		Points string `json:"points"`
+	Width   int    `json:"width"`
+	Height  int    `json:"height"`
+	Outline string `json:"outline"` // the flat's outer wall
+	Rooms   []struct {
+		Name   string  `json:"name"`
+		Points string  `json:"points"`
+		LabelX float64 `json:"labelX"`
+		LabelY float64 `json:"labelY"`
 	} `json:"rooms"`
+	Walls []string `json:"walls"` // interior walls, as polyline point strings
+	Doors []struct {
+		X1 float64 `json:"x1"`
+		Y1 float64 `json:"y1"`
+		X2 float64 `json:"x2"`
+		Y2 float64 `json:"y2"`
+	} `json:"doors"`
 	Devices []struct {
 		AIN   string  `json:"ain"`
 		Label string  `json:"label"`
@@ -260,24 +276,46 @@ type plan struct {
 	} `json:"devices"`
 }
 
+// planJSON returns the configured plan, preferring a file over an inline
+// value. A traced floor plan runs to a few hundred lines, which is miserable
+// inside an environment variable.
+func (f *FritzHome) planJSON() (string, error) {
+	if path := f.deps.Config.Get("floorplan_file"); path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("reading floor plan %s: %w", path, err)
+		}
+		return string(b), nil
+	}
+	return f.deps.Config.Get("floorplan"), nil
+}
+
 func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 	type room struct {
 		Name, Points   string
 		LabelX, LabelY float64
 	}
+	type door struct{ X1, Y1, X2, Y2 float64 }
 	type dev struct {
-		Name, Value, Colour string
-		X, Y, LabelY        float64
+		Name, Value, Unit, Colour   string
+		X, Y, LabelY, ValueY, UnitY float64
+		Known                       bool
 	}
 	data := struct {
 		HasPlan bool
 		Example string
 		W, H    int
+		Outline string
 		Rooms   []room
+		Walls   []string
+		Doors   []door
 		Devices []dev
 	}{Example: examplePlan, W: 800, H: 500}
 
-	raw := f.deps.Config.Get("floorplan")
+	raw, err := f.planJSON()
+	if err != nil {
+		return "", err
+	}
 	if strings.TrimSpace(raw) == "" {
 		return f.exec("floorplan", data)
 	}
@@ -286,6 +324,8 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 		return "", fmt.Errorf("floor plan JSON is invalid: %w", err)
 	}
 	data.HasPlan = true
+	data.Outline = p.Outline
+	data.Walls = p.Walls
 	if p.Width > 0 {
 		data.W = p.Width
 	}
@@ -293,8 +333,15 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 		data.H = p.Height
 	}
 	for _, rm := range p.Rooms {
-		x, y := firstPoint(rm.Points)
-		data.Rooms = append(data.Rooms, room{Name: rm.Name, Points: rm.Points, LabelX: x + 10, LabelY: y + 24})
+		lx, ly := rm.LabelX, rm.LabelY
+		if lx == 0 && ly == 0 {
+			x, y := firstPoint(rm.Points)
+			lx, ly = x+12, y+26
+		}
+		data.Rooms = append(data.Rooms, room{Name: rm.Name, Points: rm.Points, LabelX: lx, LabelY: ly})
+	}
+	for _, d := range p.Doors {
+		data.Doors = append(data.Doors, door{d.X1, d.Y1, d.X2, d.Y2})
 	}
 
 	byAIN := map[string]fritzbox.Device{}
@@ -309,24 +356,30 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 	}
 	for _, pd := range p.Devices {
 		d, ok := byAIN[pd.AIN]
-		name, value, colour := pd.Label, "n/a", "#b5b5b5"
+		out := dev{Name: pd.Label, Value: "n/a", Colour: "hsl(0, 0%, 71%)", X: pd.X, Y: pd.Y, Known: ok}
 		if ok {
-			if name == "" {
-				name = d.Name
+			if out.Name == "" {
+				out.Name = d.Name
 			}
+			// Power is the more interesting number when a device reports both.
 			switch {
 			case d.PowerW != nil:
-				value = fmt.Sprintf("%.0f W", *d.PowerW)
-				colour = "hsl(171, 100%, 41%)"
+				out.Value = fmt.Sprintf("%.0f", *d.PowerW)
+				out.Unit = "W"
+				out.Colour = "hsl(171, 100%, 41%)"
 			case d.TempC != nil:
-				value = fmt.Sprintf("%.1f °C", *d.TempC)
-				colour = "hsl(229, 53%, 53%)"
+				out.Value = fmt.Sprintf("%.1f", *d.TempC)
+				out.Unit = "\u00b0C"
+				out.Colour = "hsl(229, 53%, 53%)"
+			}
+			if !d.Present {
+				out.Colour = "hsl(348, 86%, 61%)"
 			}
 		}
-		data.Devices = append(data.Devices, dev{
-			Name: name, Value: value, Colour: colour,
-			X: pd.X, Y: pd.Y, LabelY: pd.Y + 26,
-		})
+		out.LabelY = pd.Y - 28
+		out.ValueY = pd.Y + 5
+		out.UnitY = pd.Y + 36
+		data.Devices = append(data.Devices, out)
 	}
 	return f.exec("floorplan", data)
 }

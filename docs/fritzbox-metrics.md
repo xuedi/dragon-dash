@@ -186,3 +186,27 @@ the wenlong convention.
 - AHA-HTTP-Interface spec: <https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf>
 - `fritz_exporter`: <https://github.com/pdreker/fritz_exporter>
 - Prometheus HTTP API: <https://prometheus.io/docs/prometheus/latest/querying/api/>
+
+## The floor plan format
+
+A JSON file, pointed at by `DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE`. Plain SVG geometry so it can be
+traced from a sketch by hand:
+
+| Key | Meaning |
+|---|---|
+| `outline` | the flat's outer wall, an SVG polygon point string |
+| `rooms[]` | `points` polygon plus a `name` and optional `labelX`/`labelY` |
+| `walls[]` | interior walls, each an SVG polyline point string |
+| `doors[]` | `x1,y1,x2,y2` segments, drawn over the walls they interrupt |
+| `devices[]` | `ain` plus `x`/`y`, and an optional `label` overriding the device name |
+
+Devices are placed by **AIN**, never by name, because names are not unique: a FRITZ!Smart Energy
+250 reports as two entries sharing one name, distinguished only by an AIN suffix.
+
+**Watch the polygon winding.** A room drawn with a concave step can exclude the pocket you meant to
+include, which shows up as an unfilled white patch rather than an error. A point-in-polygon check on
+a coordinate inside the questionable area is the quickest way to confirm the shape is what you
+think.
+
+Colour carries meaning: teal for power, indigo for temperature, red for doors and for a device the
+box reports as absent.
