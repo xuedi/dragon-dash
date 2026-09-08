@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.7.0-blue)
+![version](https://img.shields.io/badge/version-0.7.1-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -32,11 +32,12 @@ There is no `package.json` and never will be.
 
 ## What it shows
 
-### Dragon
+### Host
 
 Server metrics from `prometheus-node-exporter`: CPU, memory, filesystem usage,
-hwmon temperatures, load and uptime. An overview of current values, plus a chart
-per metric with ranges from one hour to one year.
+temperatures, load and uptime. An overview of current values, plus a chart per
+metric with ranges from one hour to one year. The thermals chart names its
+lines, so a warm board says which part is warm.
 
 ### FritzHome
 

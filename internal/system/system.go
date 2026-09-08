@@ -1,6 +1,6 @@
 // Package system defines the contract every dragon-dash feature implements.
 //
-// A "system" is one top-navbar entry, Dragon, FritzHome, and whatever comes
+// A "system" is one top-navbar entry, Host, FritzHome, and whatever comes
 // later. Systems are compiled into the binary and register themselves at init
 // time; the config decides which ones are shown. There is no runtime plugin
 // loading, deliberately: Go's plugin package cannot cross-compile and would
@@ -74,7 +74,7 @@ type Deps struct {
 // plugins ever become worth supporting, this is the seam they would go through.
 type System interface {
 	ID() string    // stable, URL-safe: "dragon"
-	Title() string // navbar label: "Dragon"
+	Title() string // navbar label: "Host"
 	Nav() []NavItem
 	ConfigSchema() []ConfigField
 

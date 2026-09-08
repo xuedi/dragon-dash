@@ -1,6 +1,6 @@
 # Systems
 
-A **system** is one entry in the top navigation bar: Dragon, FritzHome, and whatever is added
+A **system** is one entry in the top navigation bar: Host, FritzHome, and whatever is added
 later. Systems are the unit of extension, and the shell has no knowledge of any individual one.
 
 ## The contract
@@ -10,7 +10,7 @@ later. Systems are the unit of extension, and the shell has no knowledge of any 
 ```go
 type System interface {
     ID() string                    // stable, URL-safe: "dragon"
-    Title() string                 // navbar label: "Dragon"
+    Title() string                 // navbar label: "Host"
     Nav() []NavItem                // left sidebar, as data
     ConfigSchema() []ConfigField   // settings page generates itself from this
     Render(slug string, r *http.Request) (template.HTML, error)
@@ -26,8 +26,12 @@ hardcoded anywhere; neither is the settings form. Adding a system requires no ch
 the fragment in the layout, Each system owns its own templates through its own `embed.FS`, which is
 what keeps them genuinely independent.
 
-`Register` gives a system a subtree at `/s/<id>/api/` for htmx fragments and JSON. The Dragon
+`Register` gives a system a subtree at `/s/<id>/api/` for htmx fragments and JSON. The Host
 system's chart data comes from there.
+
+The ID and the title are deliberately unrelated: the Host system is still `dragon` in URLs and in
+`DD_SYSTEM_DRAGON_ENABLED`, because an ID is a stable identifier and a title is a label that can be
+reworded whenever it reads better.
 
 ## Registration
 

@@ -129,7 +129,9 @@ type Dragon struct {
 }
 
 func (d *Dragon) ID() string    { return "dragon" }
-func (d *Dragon) Title() string { return "Dragon" }
+// Title is the navbar label, and is not the ID: "dragon" names a personal
+// machine, which would only mislead anyone else running this.
+func (d *Dragon) Title() string { return "Host" }
 
 func (d *Dragon) Nav() []system.NavItem {
 	nav := []system.NavItem{{Slug: "overview", Title: "Overview"}}
