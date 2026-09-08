@@ -22,6 +22,31 @@ import (
 
 const prometheusURLKey = "core.prometheus_url"
 
+// themeCookie holds a light/dark override, or is absent to follow the browser.
+//
+// A cookie rather than localStorage because the page is server rendered: the
+// theme arrives as an attribute in the HTML itself, so there is no moment where
+// a dark page has already painted white and waits for a script to correct it.
+// localStorage is invisible to the server and would need a blocking script in
+// the head to avoid exactly that flash.
+const themeCookie = "dd_theme"
+
+// theme returns "light", "dark", or "" to follow the browser.
+//
+// The value is whitelisted rather than passed through: it ends up in an
+// attribute, and a cookie is client-controlled input like any other.
+func theme(r *http.Request) string {
+	c, err := r.Cookie(themeCookie)
+	if err != nil {
+		return ""
+	}
+	switch c.Value {
+	case "light", "dark":
+		return c.Value
+	}
+	return ""
+}
+
 type Server struct {
 	cfg   *config.Config
 	log   *slog.Logger
@@ -129,7 +154,7 @@ func (s *Server) handleSystemPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := s.layout(sys, slug)
+	data := s.layout(r, sys, slug)
 	body, err := sys.Render(slug, r)
 	if err != nil {
 		// Render the shell anyway: a broken page should not cost the user
@@ -153,6 +178,7 @@ type sysLink struct {
 
 type layoutData struct {
 	Version        string
+	Theme          string
 	PageTitle      string
 	ActiveTitle    string
 	Systems        []sysLink
@@ -162,8 +188,8 @@ type layoutData struct {
 	Error          string
 }
 
-func (s *Server) layout(active system.System, slug string) layoutData {
-	d := layoutData{Version: version.Version}
+func (s *Server) layout(r *http.Request, active system.System, slug string) layoutData {
+	d := layoutData{Version: version.Version, Theme: theme(r)}
 	for _, sys := range s.enabled() {
 		isActive := active != nil && sys.ID() == active.ID()
 		d.Systems = append(d.Systems, sysLink{ID: sys.ID(), Title: sys.Title(), Active: isActive})
@@ -278,7 +304,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
 	}
-	d := s.layout(nil, "")
+	d := s.layout(r, nil, "")
 	d.PageTitle = "Settings"
 	d.SettingsActive = true
 	d.Body = template.HTML(body.String())

@@ -44,6 +44,23 @@ they live in different metrics. Two details make that readable rather than a tan
 Bulma 1.0 exposes CSS custom properties (`--bulma-border`, `--bulma-text-weak`, and so on). The
 floor plan SVG uses those rather than fixed colours, so it follows the theme instead of fighting it.
 
+By default the page follows the browser. A navbar toggle overrides that with Bulma's own
+`data-theme` attribute on the `html` element: Bulma defines its whole palette a second time under
+`[data-theme]`, after the `prefers-color-scheme` block and at equal specificity, so the attribute
+wins in both directions. There is no custom CSS behind the toggle at all.
+
+The choice is remembered in a **cookie**, not in `localStorage`, because the page is server
+rendered. The server reads the cookie and writes the attribute into the HTML it serves, so the
+correct scheme is in the first byte the browser paints. `localStorage` is invisible to the server
+and would need a blocking script in the head to avoid the page flashing white before the script
+corrects it. The cookie value is whitelisted on the way in: it is client-controlled input that ends
+up in an attribute.
+
+Two things follow the theme by a different route. The charts paint a canvas, which inherits
+nothing, so they read Bulma's variables off the computed root style and repaint on a `dd:theme`
+event that the toggle fires. And while an override is set, the `prefers-color-scheme` listener
+stops repainting, because the browser preference is no longer what is on screen.
+
 ## Page shape
 
 Every page is assembled from stock Bulma, in the same order, so no page invents its own header:

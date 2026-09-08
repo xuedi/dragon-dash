@@ -1,5 +1,8 @@
 {{define "layout"}}<!doctype html>
-<html lang="en">
+{{/* The theme is an attribute in the served HTML, not something a script
+     patches in on load, so the page never paints in the wrong scheme first.
+     Absent means follow the browser, which is Bulma's own default. */}}
+<html lang="en"{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,6 +41,13 @@
         {{end}}
       </div>
       <div class="navbar-end">
+        <div class="navbar-item">
+          <div class="buttons has-addons are-small">
+            {{template "theme-button" (dict "Value" "" "Label" "Auto" "Theme" .Theme)}}
+            {{template "theme-button" (dict "Value" "light" "Label" "Light" "Theme" .Theme)}}
+            {{template "theme-button" (dict "Value" "dark" "Label" "Dark" "Theme" .Theme)}}
+          </div>
+        </div>
         <a class="navbar-item {{if .SettingsActive}}has-text-weight-semibold has-text-link{{end}}" href="/settings">Settings</a>
       </div>
     </div>
@@ -71,5 +81,38 @@
   </div>
 </section>
 
+<script>
+  // Bulma defines its whole palette twice, under prefers-color-scheme and
+  // again under [data-theme], and its attribute rules come last in the
+  // stylesheet. Setting the attribute is therefore the entire override; there
+  // is no custom CSS behind this.
+  function ddSetTheme(value) {
+    const root = document.documentElement;
+    if (value) { root.dataset.theme = value; } else { delete root.dataset.theme; }
+
+    // No Secure flag on purpose: the dashboard is plain HTTP on a LAN, and a
+    // Secure cookie would simply never be stored. Max-Age 0 deletes it, which
+    // is what "follow the browser" means server side.
+    document.cookie = 'dd_theme=' + value + ';path=/;samesite=lax;max-age=' +
+      (value ? 31536000 : 0);
+
+    for (const b of document.querySelectorAll('[data-dd-theme]')) {
+      const on = b.dataset.ddTheme === value;
+      b.classList.toggle('is-link', on);
+      b.classList.toggle('is-selected', on);
+    }
+
+    // Canvases inherit nothing, so anything painted rather than styled has to
+    // be told. The charts listen for this.
+    window.dispatchEvent(new Event('dd:theme'));
+  }
+</script>
+
 </body>
 </html>{{end}}
+
+{{/* theme-button expects: .Value ("", "light", "dark") .Label .Theme (current) */}}
+{{define "theme-button"}}
+<button type="button" class="button{{if eq .Value .Theme}} is-link is-selected{{end}}"
+        data-dd-theme="{{.Value}}" onclick="ddSetTheme('{{.Value}}')">{{.Label}}</button>
+{{end}}

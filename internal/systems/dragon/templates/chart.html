@@ -118,9 +118,14 @@
   window.addEventListener('resize', ddResize);
 
   // Following the browser from light to dark mid-session needs a repaint; the
-  // canvas keeps the colours it was drawn with.
+  // canvas keeps the colours it was drawn with. The navbar toggle fires its own
+  // event, and while it is set the browser preference is not what is on screen,
+  // so that listener has nothing to repaint for.
   const ddScheme = window.matchMedia('(prefers-color-scheme: dark)');
-  ddScheme.addEventListener('change', () => { if (ddData) ddDraw(ddData); });
+  ddScheme.addEventListener('change', () => {
+    if (ddData && !document.documentElement.dataset.theme) ddDraw(ddData);
+  });
+  window.addEventListener('dd:theme', () => { if (ddData) ddDraw(ddData); });
   if (typeof ResizeObserver !== 'undefined') {
     const ddObserver = new ResizeObserver(ddResize);
     ddObserver.observe(ddEl);
