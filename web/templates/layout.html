@@ -17,7 +17,10 @@
       "Helvetica Neue", Helvetica, Arial, sans-serif;
     --bulma-radius: 0.375rem;
     --bulma-radius-large: 0.75rem;
-    --bulma-body-background-color: hsl(221, 14%, 98%);
+    /* One of Bulma's own scheme colours, never a literal one. Bulma flips its
+       whole palette under prefers-color-scheme, so a hardcoded light value
+       leaves a dark browser with a white page behind black boxes. */
+    --bulma-body-background-color: var(--bulma-scheme-main-bis);
   }
 </style>
 </head>

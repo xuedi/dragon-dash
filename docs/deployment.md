@@ -19,7 +19,7 @@ The running binary reports it in two ways, which is what makes a deployed build 
 without checksums:
 
 ```
-dragon-dash -version       # 0.5.0
+dragon-dash -version
 ```
 
 and the navbar sidebar, under the Build label.
@@ -28,9 +28,9 @@ and the navbar sidebar, under the Build label.
 
 ```mermaid
 flowchart LR
-    A[version.go + README badge bumped] --> B[just release 0.5.0]
+    A[version.go + README badge bumped] --> B[just release X.Y.Z]
     B --> C{guards}
-    C -->|version.go matches| D[git tag v0.5.0]
+    C -->|version.go matches| D[git tag vX.Y.Z]
     C -->|README badge matches| D
     C -->|on main, tree clean| D
     D --> E[push tag]
@@ -116,14 +116,16 @@ Two Prometheus flags matter:
 
 ### Storage
 
-Measured on a running instance, not estimated: node_exporter, dragon-dash and Prometheus itself
-come to about **2100 active series** together, of which node_exporter is roughly 1100 and the
-FRITZ!Box data about 45. At a 60 s scrape that is ~35 samples/s, and Prometheus compresses to
-roughly 1.7 bytes/sample:
+Measured on a deployed instance, not estimated: node_exporter, dragon-dash and Prometheus itself
+come to **1663 active series** together on a small board, of which node_exporter is 834 and the
+FRITZ!Box data 45. At a 60 s scrape that is ~28 samples/s, and Prometheus compresses to roughly
+1.7 bytes/sample:
 
 ```
-35 samples/s x 1.7 bytes  ~=  5 MB/day  ~=  1.8 GB/year
+28 samples/s x 1.7 bytes  ~=  4 MB/day  ~=  1.5 GB/year
 ```
 
 A decade fits in under 20 GB. Any modern root filesystem holds that, so the TSDB does not need a
-dedicated data disk, and putting it on one is a preference rather than a requirement.
+dedicated data disk, and putting it on one is a preference rather than a requirement. A bigger host
+reports more series (a desktop's node_exporter alone reports about 1100), but the order of magnitude
+does not change.

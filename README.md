@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.5.0-blue)
+![version](https://img.shields.io/badge/version-0.5.1-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -157,7 +157,7 @@ packaged for aarch64, so none of it needs containers. See
 ## Releases
 
 `internal/version/version.go` is the source of truth, mirrored by the badge above
-and by the git tag. `just release 0.5.0` checks all three agree on a clean `main`,
+and by the git tag. `just release X.Y.Z` checks all three agree on a clean `main`,
 then tags and pushes; GoReleaser builds and publishes the rest from CI. A running
 binary identifies itself with `dragon-dash -version` and in the sidebar.
 

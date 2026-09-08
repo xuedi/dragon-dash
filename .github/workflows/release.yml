@@ -21,7 +21,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          # There is no go.sum to key a cache on, the project has no dependencies.
+          cache: false
 
       # No node step: Bulma, htmx and uPlot are committed files, so there is
       # nothing to build before the Go build embeds web/.

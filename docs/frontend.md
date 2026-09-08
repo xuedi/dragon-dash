@@ -81,3 +81,35 @@ dispatching a `resize` event.
 
 Both go through one `ddResize()` with a **width guard**. Resizing the canvas can itself trigger the
 observer, and without the guard the two feed each other into a loop.
+
+
+## Light and dark
+
+Bulma 1.0 ships both palettes and switches between them on `prefers-color-scheme`, so the dashboard
+follows the browser with no toggle and no preference to store. Everything the framework draws,
+boxes, tables, the menu, tags, comes along for free.
+
+That freedom has one condition: **never give a colour a literal value.** A hardcoded light shade sits
+outside the media query, so it survives the switch while everything around it flips, and the result
+is a white page behind black boxes. The rule is to set Bulma's own custom properties to Bulma's own
+scheme colours, `var(--bulma-scheme-main-bis)` rather than the hsl triple it happens to resolve to
+today.
+
+Two places cannot inherit the palette and need explicit help:
+
+- **The floor plan.** SVG presentation attributes do not accept `var()`, so the plan carries a small
+  set of classes (`.fp-room`, `.fp-wall`, `.fp-label`) whose rules are Bulma variables. Device
+  markers keep their semantic colours, which read on either background.
+- **The charts.** uPlot paints a canvas, which inherits nothing. The axis and grid colours are read
+  out of the computed style at draw time, and a `prefers-color-scheme` listener redraws from the
+  cached payload, because a canvas keeps the colours it was drawn with.
+
+To check a change, force the palette rather than trusting the machine you are on:
+
+```js
+document.documentElement.dataset.theme = 'dark';   // 'light', or delete to follow the browser
+```
+
+Bulma keys its dark rules off both the media query and `[data-theme]`, so this exercises exactly the
+variables a dark browser would use. Comparing computed styles in both states catches the literal
+colours a screenshot on a light machine never will.

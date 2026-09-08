@@ -14,8 +14,28 @@
   const ddHeight = 340;
   let ddChart = null;
   let ddWidth = 0;
+  let ddData = null;
+
+  // uPlot paints onto a canvas, so it cannot inherit the palette the way the
+  // rest of the page does. Reading Bulma's own variables keeps the axes legible
+  // in both schemes instead of drawing near-black text on a dark page.
+  function ddTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const get = (n, fallback) => cs.getPropertyValue(n).trim() || fallback;
+    return {
+      axis: get('--bulma-text-weak', '#7a7a7a'),
+      grid: get('--bulma-border-weak', '#ededed'),
+    };
+  }
 
   function ddDraw(d) {
+    ddData = d;
+    const theme = ddTheme();
+    const axis = {
+      stroke: theme.axis,
+      grid: { stroke: theme.grid, width: 1 },
+      ticks: { stroke: theme.grid, width: 1 },
+    };
     const data = [d.time, ...d.series.map(s => s.data)];
     if (ddChart) { ddChart.destroy(); }
     ddWidth = ddEl.clientWidth || 900;
@@ -35,7 +55,7 @@
         // one-point series draws nothing at all.
         points: { show: d.time.length <= 60 },
       }))],
-      axes: [{}, { label: d.unit || '' }],
+      axes: [{ ...axis }, { ...axis, label: d.unit || '' }],
     }, data, ddEl);
   }
 
@@ -79,6 +99,11 @@
   // while the page is actually rendering, so it is the supplement, not the
   // mechanism.
   window.addEventListener('resize', ddResize);
+
+  // Following the browser from light to dark mid-session needs a repaint; the
+  // canvas keeps the colours it was drawn with.
+  const ddScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  ddScheme.addEventListener('change', () => { if (ddData) ddDraw(ddData); });
   if (typeof ResizeObserver !== 'undefined') {
     const ddObserver = new ResizeObserver(ddResize);
     ddObserver.observe(ddEl);
