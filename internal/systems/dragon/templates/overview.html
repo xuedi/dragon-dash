@@ -1,0 +1,33 @@
+{{define "overview"}}
+<h1 class="title is-4">Dragon</h1>
+
+{{if .Unconfigured}}
+  <div class="notification is-warning">
+    <strong>Prometheus is not configured.</strong>
+    Set its URL in <a href="/settings">Settings</a>, every value on this page comes from there.
+  </div>
+{{else if .Err}}
+  <div class="notification is-danger"><strong>Could not read metrics.</strong><br>{{.Err}}</div>
+{{end}}
+
+<div class="fixed-grid has-4-cols">
+  <div class="grid">
+    {{range .Stats}}
+    <div class="cell">
+      <div class="box has-text-centered">
+        <p class="heading">{{.Label}}</p>
+        <p class="title is-4">{{if .OK}}{{.Display}}{{else}}<span class="has-text-grey-light">-</span>{{end}}</p>
+        {{if and .OK .Sub}}<p class="is-size-7 has-text-grey">{{.Sub}}</p>{{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{if not .Unconfigured}}
+<p class="is-size-7 has-text-grey">
+  Missing values mean the metric is absent, not that it is zero, usually
+  <code>prometheus-node-exporter</code> is not running or not being scraped.
+</p>
+{{end}}
+{{end}}

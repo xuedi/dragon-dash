@@ -1,0 +1,28 @@
+{{define "floorplan"}}
+<h1 class="title is-4">Floor plan</h1>
+
+{{if not .HasPlan}}
+  <div class="notification is-info is-light">
+    <p><strong>No floor plan defined yet.</strong></p>
+    <p class="mt-2">The plan is data, not code: rooms are polygons and devices are points, both
+      stored as JSON in Settings. Sketch your apartment and the rooms and device positions can be
+      filled in, nothing here needs recompiling.</p>
+    <pre class="mt-3 is-size-7">{{.Example}}</pre>
+  </div>
+{{end}}
+
+<div class="box">
+  <svg viewBox="0 0 {{.W}} {{.H}}" style="width:100%;max-height:70vh" role="img" aria-label="apartment floor plan">
+    {{range .Rooms}}
+      <polygon points="{{.Points}}" fill="var(--bulma-scheme-main-ter)" stroke="var(--bulma-border)" stroke-width="2"/>
+      <text x="{{.LabelX}}" y="{{.LabelY}}" font-size="14" fill="var(--bulma-text-weak)">{{.Name}}</text>
+    {{end}}
+    {{range .Devices}}
+      <circle cx="{{.X}}" cy="{{.Y}}" r="10" fill="{{.Colour}}" stroke="white" stroke-width="2">
+        <title>{{.Name}}: {{.Value}}</title>
+      </circle>
+      <text x="{{.X}}" y="{{.LabelY}}" font-size="11" text-anchor="middle" fill="var(--bulma-text)">{{.Value}}</text>
+    {{end}}
+  </svg>
+</div>
+{{end}}

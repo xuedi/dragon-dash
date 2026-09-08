@@ -1,0 +1,59 @@
+{{define "layout"}}<!doctype html>
+<html lang="en" class="theme-dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.PageTitle}} · dragon-dash</title>
+<link rel="stylesheet" href="/static/bulma.min.css">
+<link rel="stylesheet" href="/static/uPlot.min.css">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/uPlot.iife.min.js" defer></script>
+<style>
+  body { min-height: 100vh; }
+  .dd-side { min-height: calc(100vh - 3.25rem); border-right: 1px solid var(--bulma-border); }
+  .dd-main { padding: 1.5rem; }
+  .uplot { margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<nav class="navbar is-primary" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item has-text-weight-bold" href="/">dragon-dash</a>
+  </div>
+  <div class="navbar-menu is-active">
+    <div class="navbar-start">
+      {{range .Systems}}
+        <a class="navbar-item {{if .Active}}is-active has-text-weight-semibold{{end}}" href="/s/{{.ID}}/">{{.Title}}</a>
+      {{end}}
+    </div>
+    <div class="navbar-end">
+      <span class="navbar-item is-size-7 has-text-weight-light">v{{.Version}}</span>
+      <a class="navbar-item {{if .SettingsActive}}is-active has-text-weight-semibold{{end}}" href="/settings">Settings</a>
+    </div>
+  </div>
+</nav>
+
+<div class="columns is-gapless">
+  {{if .Nav}}
+  <aside class="column is-narrow dd-side p-4" style="min-width: 14rem;">
+    <p class="menu-label">{{.ActiveTitle}}</p>
+    <ul class="menu-list">
+      {{range .Nav}}
+        <li><a href="{{.Href}}" class="{{if .Active}}is-active{{end}}">{{.Title}}</a></li>
+      {{end}}
+    </ul>
+  </aside>
+  {{end}}
+  <main class="column dd-main">
+    {{if .Error}}
+      <div class="notification is-danger">
+        <strong>{{.PageTitle}} failed to render.</strong><br>{{.Error}}
+      </div>
+    {{end}}
+    {{.Body}}
+  </main>
+</div>
+
+</body>
+</html>{{end}}

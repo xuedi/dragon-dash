@@ -1,0 +1,36 @@
+{{define "overview"}}
+<h1 class="title is-4">FritzHome</h1>
+
+{{if .Unconfigured}}
+  <div class="notification is-warning">
+    <strong>Prometheus is not configured.</strong> Set its URL in <a href="/settings">Settings</a>.
+  </div>
+{{else if .Err}}
+  <div class="notification is-danger"><strong>Could not read metrics.</strong><br>{{.Err}}</div>
+{{else if not .Devices}}
+  <div class="notification is-info is-light">
+    <strong>No <code>{{.Prefix}}*</code> metrics found in Prometheus.</strong>
+    <p class="mt-2">Either <code>fritz_exporter</code> is not running or Prometheus is not scraping it.
+    Check the exporter's own target in Prometheus first.</p>
+  </div>
+{{else}}
+  <table class="table is-fullwidth is-striped is-hoverable">
+    <thead><tr><th>Device</th><th>Metric</th><th class="has-text-right">Value</th></tr></thead>
+    <tbody>
+      {{range .Devices}}
+        {{$d := .}}
+        {{range $i, $m := .Metrics}}
+        <tr>
+          <td>{{if eq $i 0}}<strong>{{$d.Name}}</strong>{{end}}</td>
+          <td><code class="is-size-7">{{$m.Name}}</code></td>
+          <td class="has-text-right">{{$m.Value}}</td>
+        </tr>
+        {{end}}
+      {{end}}
+    </tbody>
+  </table>
+  <p class="is-size-7 has-text-grey">
+    {{len .Devices}} device(s) discovered from series matching <code>{{.Prefix}}*</code>.
+  </p>
+{{end}}
+{{end}}

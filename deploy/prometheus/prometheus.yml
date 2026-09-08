@@ -1,0 +1,20 @@
+# Scrape config for dragon-dash.
+# 60s is ample for smart-plug power and room temperature, and the storage
+# arithmetic in README.md assumes it. Raising it to 15s quadruples growth.
+
+global:
+  scrape_interval: 60s
+  scrape_timeout: 30s
+  external_labels:
+    host: dragon
+
+scrape_configs:
+  - job_name: fritzbox
+    static_configs:
+      - targets: ["fritz-exporter:9787"]
+
+  # Prometheus watching itself, cheap, and the first thing you want when
+  # the dashboard is empty and you need to know whether scraping runs at all.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]

@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # No node step, deliberately: Bulma, htmx and uPlot are committed files.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./internal ./web)
+          if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
+
+      - run: go vet ./...
+
+      - run: go test ./...
+
+      # The board is the deployment target; catching an arch break here is
+      # cheaper than catching it at release time.
+      - name: cross-compile for arm64
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./...

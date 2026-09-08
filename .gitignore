@@ -1,0 +1,15 @@
+# GoLand / IntelliJ
+.idea/
+*.iml
+
+# build output
+/bin/
+/dragon-dash
+
+# runtime state, config.json holds credentials, never commit it
+/config.json
+*.tmp
+
+# deployment secrets
+/deploy/.env
+/deploy/data/

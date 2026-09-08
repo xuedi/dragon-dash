@@ -1,0 +1,30 @@
+# Local development only: gives the desktop a Prometheus with real data so the
+# Dragon pages are not empty. Nothing here is meant for dragon.
+name: dragon-dash-dev
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+      - dev-tsdb:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    command:
+      - --path.rootfs=/host
+      - --collector.hwmon
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "127.0.0.1:9100:9100"
+
+volumes:
+  dev-tsdb:

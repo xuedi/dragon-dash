@@ -1,0 +1,55 @@
+{{define "settings"}}
+<h1 class="title is-4">Settings</h1>
+
+<div class="notification is-warning is-light">
+  <strong>No authentication.</strong> Anyone who can reach this page can read the
+  values below, including passwords. Keep dragon-dash on the LAN.
+</div>
+
+<form method="post" action="/settings">
+  <div class="box">
+    <h2 class="title is-6">Core</h2>
+    <div class="field">
+      <label class="label">Prometheus URL</label>
+      <div class="control">
+        <input class="input" type="url" name="core.prometheus_url"
+               value="{{.PrometheusURL}}" placeholder="http://127.0.0.1:9090">
+      </div>
+      <p class="help">Every metric on every page is read from here. Without it the dashboards stay empty.</p>
+    </div>
+  </div>
+
+  {{range .Systems}}
+  <div class="box">
+    <div class="level mb-3">
+      <div class="level-left"><h2 class="title is-6 mb-0">{{.Title}}</h2></div>
+      <div class="level-right">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled.{{.ID}}" {{if .Enabled}}checked{{end}}> shown in the navbar
+        </label>
+      </div>
+    </div>
+
+    {{range .Fields}}
+    <div class="field">
+      <label class="label">{{.Label}}</label>
+      <div class="control">
+        {{if eq .Kind "bool"}}
+          <label class="checkbox">
+            <input type="checkbox" name="{{.Name}}" {{if .Checked}}checked{{end}}> enabled
+          </label>
+        {{else}}
+          <input class="input" type="{{.InputType}}" name="{{.Name}}" value="{{.Value}}" placeholder="{{.Default}}">
+        {{end}}
+      </div>
+      {{if .Help}}<p class="help">{{.Help}}</p>{{end}}
+    </div>
+    {{end}}
+    {{if not .Fields}}<p class="has-text-grey is-size-7">No settings.</p>{{end}}
+  </div>
+  {{end}}
+
+  <button class="button is-primary" type="submit">Save</button>
+  {{if .Saved}}<span class="tag is-success ml-3">Saved</span>{{end}}
+</form>
+{{end}}
