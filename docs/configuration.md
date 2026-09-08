@@ -1,38 +1,51 @@
 # Configuration
 
-One JSON file, `config.json` by default, overridable with `-config`. Written atomically (temp file
-plus rename, so an interrupted write cannot truncate a good config) with mode `0600`, because it
-can hold credentials.
+Read-only, loaded once at startup from env files and the environment. Nothing can be changed
+through the web interface.
 
-## Why not a database
+That is the central design decision, not an omission. With no write path there is no form to
+protect, no CSRF surface and no way for a visitor to point the application at somewhere else. It is
+what makes running on a LAN without a login defensible.
 
-Everything stored here is configuration, a handful of strings. A plain file is transparent,
-trivially backed up, editable by hand when something is wrong, and keeps the binary on the standard
-library alone. Actual data belongs in Prometheus, which is already a time-series database and far
-better at it.
+## Sources
 
-## Key namespacing
+Applied in order, each overriding the last:
+
+| Source | Purpose |
+|---|---|
+| `.env.dist` | committed defaults, safe to read |
+| `.env.local` | gitignored, `0600`, where credentials belong |
+| environment | wins over both, so containers and systemd units need no files |
+
+Override the file list with `-env a.env,b.env`. A missing file is not an error: a container may
+configure everything through real environment variables.
+
+## Naming
+
+Every variable starts with `DD_`. A dotted key maps to it by uppercasing and replacing separators:
 
 ```
-core.prometheus_url            shell-owned
-system.<id>.enabled            per system, "1" or "0"
-system.<id>.<field>            per system, from its ConfigSchema
+core.prometheus_url                DD_CORE_PROMETHEUS_URL
+system.fritzhome.password          DD_SYSTEM_FRITZHOME_PASSWORD
+system.dragon.enabled              DD_SYSTEM_DRAGON_ENABLED
 ```
 
-A system receives a `Scope`, not the whole config, so it can only read and write its own namespace.
-One system cannot read another's secrets by accident.
+A variable that does not start with `DD_` is rejected at load with the file and line number.
+Silently ignoring `PROMETHEUS_URL=` because of a missing prefix is a miserable thing to debug.
 
-**An unset `enabled` key means enabled.** A fresh install shows every system rather than presenting
-an empty shell with no clue what to do.
+**An unset `enabled` key means enabled.** A fresh checkout shows every system rather than an empty
+shell with no clue what to do.
 
-## The settings page generates itself
+## Scopes
 
-The shell walks every registered system, asks for its `ConfigSchema()`, and renders an input per
-field, text, password, url or checkbox. A system never writes settings UI.
+A system receives a `Scope`, never the whole config, so it can only read its own namespace. One
+system cannot read another's credentials by accident. The scope has no setter.
 
-Two details worth knowing when editing that code:
+## The settings page
 
-- Unchecked checkboxes are **absent** from an HTML form body, not sent as `false`. Enablement is
-  therefore derived from presence (`r.Form.Has`), never from a value.
-- The settings page lists **all** registered systems, not only the enabled ones. Otherwise
-  switching a system off would remove the control needed to switch it back on.
+Read-only by construction. It reports each value in effect, the environment variable it came from,
+and **which source won**, because "why is this empty" is nearly always answered by discovering the
+value came from `.env.dist` rather than `.env.local`.
+
+Fields marked `Secret` in a system's `ConfigSchema` are shown as dots. The page is reachable without
+authentication, so a password must never be rendered.

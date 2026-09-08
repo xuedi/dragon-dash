@@ -1,6 +1,6 @@
-# Scrape config for dragon-dash.
-# 60s is ample for smart-plug power and room temperature, and the storage
-# arithmetic in README.md assumes it. Raising it to 15s quadruples growth.
+# Scrape config for the deployed stack.
+# 60s is ample for smart plug power and room temperature; the storage
+# arithmetic in ../../docs/fritzbox-metrics.md assumes it.
 
 global:
   scrape_interval: 60s
@@ -9,12 +9,16 @@ global:
     host: dragon
 
 scrape_configs:
-  - job_name: fritzbox
+  # The board itself: CPU, memory, filesystems, hwmon temperatures.
+  - job_name: node
     static_configs:
-      - targets: ["fritz-exporter:9787"]
+      - targets: ["node-exporter:9100"]
 
-  # Prometheus watching itself, cheap, and the first thing you want when
-  # the dashboard is empty and you need to know whether scraping runs at all.
+  # dragon-dash, which polls the FRITZ!Box and republishes it.
+  - job_name: dragon-dash
+    static_configs:
+      - targets: ["dragon-dash:8080"]
+
   - job_name: prometheus
     static_configs:
       - targets: ["127.0.0.1:9090"]

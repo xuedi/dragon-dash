@@ -10,9 +10,9 @@
     <div class="control">
       <div class="select is-small">
         <select id="dd-range" onchange="ddLoad()">
-          <option value="3600">last hour</option>
+          <option value="3600" selected>last hour</option>
           <option value="21600">last 6 hours</option>
-          <option value="86400" selected>last day</option>
+          <option value="86400">last day</option>
           <option value="604800">last week</option>
           <option value="2592000">last 30 days</option>
           <option value="31536000">last year</option>
@@ -49,9 +49,19 @@
         if (ddChart) { ddChart.destroy(); }
         ddChart = new uPlot({
           width: el.clientWidth || 900, height: 320,
-          scales: { x: { time: true } },
+          scales: {
+            x: { time: true },
+            // Pin the requested window so a single sample cannot make uPlot
+            // auto-range the axis out to several years.
+            y: { range: (u, min, max) => [Math.min(0, min), Math.max(max, min + 1)] },
+          },
           series: [{}, ...d.series.map((s, i) => ({
-            label: s.name, stroke: ['#485fc7','#48c78e','#ffe08a','#f14668'][i % 4], width: 1.5,
+            label: s.name,
+            stroke: ['#485fc7','#00d1b2','#ffe08a','#f14668'][i % 4],
+            width: 1.5,
+            // A fresh Prometheus has only a handful of samples; without
+            // markers a one-point series draws nothing at all.
+            points: { show: d.time.length <= 60 },
           }))],
           axes: [{}, { label: d.unit || '' }],
         }, data, el);

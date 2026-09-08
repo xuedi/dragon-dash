@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.1.0-blue)
+![version](https://img.shields.io/badge/version-0.2.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -16,8 +16,8 @@ running Arch Linux ARM, but nothing in it is specific to that board.
 ## Why it exists
 
 Grafana is the obvious answer and it is a good one, but it is a large dependency
-to run permanently on a 12 W box, it is **not packaged for aarch64** at all
-(neither in Arch Linux ARM's repos nor the AUR), and most of it goes unused when
+to run permanently on a 12 W box, it is **not packaged for aarch64** at all (neither in Arch Linux ARM's repos nor the
+AUR), and most of it goes unused when
 all you want is a handful of charts and a floor plan of your flat.
 
 dragon-dash is the small version of that: one static binary, no database, no
@@ -25,12 +25,12 @@ node toolchain, no runtime dependencies.
 
 ## Stack
 
-| | | |
-|---|---|---|
-| Go, standard library only | no external Go modules | the binary is the deployment |
-| `html/template` + [htmx](https://htmx.org) | server-rendered | no build step, no npm |
-| [Bulma](https://bulma.io) 1.0 | CSS only | no JS framework to age |
-| [uPlot](https://github.com/leeoniya/uPlot) | charts | a year at 60s is ~500k points; uPlot is built for that |
+|                                            |                        |                                                        |
+|--------------------------------------------|------------------------|--------------------------------------------------------|
+| Go, standard library only                  | no external Go modules | the binary is the deployment                           |
+| `html/template` + [htmx](https://htmx.org) | server-rendered        | no build step, no npm                                  |
+| [Bulma](https://bulma.io) 1.0              | CSS only               | no JS framework to age                                 |
+| [uPlot](https://github.com/leeoniya/uPlot) | charts                 | a year at 60s is ~500k points; uPlot is built for that |
 
 Bulma, htmx and uPlot are **committed as files** and embedded with `go:embed`.
 There is no `package.json` and never will be.
@@ -43,12 +43,12 @@ and renders the result:
 
 ```go
 type System interface {
-    ID() string                    // "dragon"
-    Title() string                 // navbar label
-    Nav() []NavItem                // left sidebar, as data
-    ConfigSchema() []ConfigField   // settings page generates itself from this
-    Render(slug string, r *http.Request) (template.HTML, error)
-    Register(mux *http.ServeMux, prefix string, deps Deps)
+ID() string    // "dragon"
+Title() string // navbar label
+Nav() []NavItem // left sidebar, as data
+ConfigSchema() []ConfigField // settings page generates itself from this
+Render(slug string, r *http.Request) (template.HTML, error)
+Register(mux *http.ServeMux, prefix string, deps Deps)
 }
 ```
 
@@ -105,17 +105,17 @@ per metric with ranges from one hour to one year.
 
 ### FritzHome
 
-FRITZ!Box smart home data (smart plug power and energy, room temperatures)
-scraped by [`pdreker/fritz_exporter`](https://github.com/pdreker/fritz_exporter),
-which speaks both TR-064 and AVM's AHA-HTTP-Interface. Devices are *discovered*
-from Prometheus rather than hard-coded, because exact metric names depend on the
-exporter version and which devices are paired.
+FRITZ!Box smart home data: smart plug power and energy, room temperatures,
+humidity, thermostat setpoints and battery levels.
+
+dragon-dash talks to the box itself over AVM's documented interfaces
+(`login_sid.lua` with the PBKDF2 challenge, then the AHA-HTTP-Interface), so
+there is no separate exporter to run and the credentials live in one place. The
+page shows the live reading; the same reading is published at `/metrics` for
+Prometheus to keep as history.
 
 Includes a **floor plan**: rooms as polygons, devices as points, both stored as
 JSON in Settings and rendered as SVG. Redrawing the flat does not mean recompiling.
-
-Note that dragon-dash holds **no FRITZ!Box credentials**. It never talks to the
-router; the exporter does, and it keeps its own copy. One secret in one place.
 
 Background on why Prometheus rather than InfluxDB, storage sizing, and the
 exporters that were evaluated and rejected: [`docs/fritzbox-metrics.md`](docs/fritzbox-metrics.md).
@@ -128,7 +128,7 @@ Not deployed yet. When it is, it will be the same binary cross-compiled:
 just build-arm    # bin/dragon-dash-arm64, static, ~10 MB
 ```
 
-`deploy/` holds a Compose stack (dragon-dash + Prometheus + fritz_exporter) that
+`deploy/` holds a Compose stack (dragon-dash + Prometheus + node_exporter) that
 publishes `80:8080`. Port 80 is a port mapping, so the process never needs root
 or `CAP_NET_BIND_SERVICE`.
 

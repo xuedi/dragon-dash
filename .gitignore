@@ -13,3 +13,6 @@
 # deployment secrets
 /deploy/.env
 /deploy/data/
+
+# local secrets
+.env.local

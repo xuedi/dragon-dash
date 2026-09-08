@@ -64,7 +64,7 @@ func (d *Dragon) ConfigSchema() []system.ConfigField { return nil }
 func (d *Dragon) Register(mux *http.ServeMux, prefix string, deps system.Deps) {
 	d.deps = deps
 	d.prom = promql.New(deps.PromURL)
-	d.tmpl = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
+	d.tmpl = system.MustTemplates(templatesFS, "templates/*.html")
 	mux.HandleFunc("GET "+prefix+"range", d.handleRange)
 }
 
@@ -125,7 +125,7 @@ func (d *Dragon) renderOverview(r *http.Request) (template.HTML, error) {
 		{"Memory used", `100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)`,
 			func(v float64) (string, string) { return fmt.Sprintf("%.1f %%", v), "" }},
 		{"Root filesystem", `100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})`,
-			func(v float64) (string, string) { return fmt.Sprintf("%.1f %%", v), "used" }},
+			func(v float64) (string, string) { return fmt.Sprintf("%.1f %%", v), "" }},
 		{"Load (1m)", `node_load1`,
 			func(v float64) (string, string) { return fmt.Sprintf("%.2f", v), "" }},
 		{"Hottest sensor", `max(node_hwmon_temp_celsius)`,

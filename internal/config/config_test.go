@@ -1,95 +1,129 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
 
-func newTemp(t *testing.T) *Config {
+func write(t *testing.T, dir, name, body string) string {
 	t.Helper()
-	c, err := Load(filepath.Join(t.TempDir(), "config.json"))
-	if err != nil {
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return c
+	return p
 }
 
 func TestMissingFileIsNotAnError(t *testing.T) {
-	c := newTemp(t)
-	if got := c.Get("anything"); got != "" {
+	c, err := Load(filepath.Join(t.TempDir(), "nope.env"))
+	if err != nil {
+		t.Fatalf("a missing env file should be tolerated: %v", err)
+	}
+	if got := c.Get("core.prometheus_url"); got != "" {
 		t.Fatalf("got %q, want empty", got)
 	}
 }
 
-func TestSetPersistsAcrossReload(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-	c, err := Load(path)
+func TestLaterFileWins(t *testing.T) {
+	dir := t.TempDir()
+	dist := write(t, dir, ".env.dist", "DD_CORE_PROMETHEUS_URL=http://dist:9090\n")
+	local := write(t, dir, ".env.local", "DD_CORE_PROMETHEUS_URL=http://local:9090\n")
+	c, err := Load(dist, local)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Set("core.prometheus_url", "http://example:9090"); err != nil {
-		t.Fatal(err)
+	if got := c.Get("core.prometheus_url"); got != "http://local:9090" {
+		t.Fatalf("got %q, want the .env.local value", got)
 	}
-	again, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := again.Get("core.prometheus_url"); got != "http://example:9090" {
-		t.Fatalf("got %q after reload", got)
+	if got := c.Source("core.prometheus_url"); got != local {
+		t.Fatalf("source = %q, want %q", got, local)
 	}
 }
 
-func TestSetEmptyDeletes(t *testing.T) {
-	c := newTemp(t)
-	_ = c.Set("k", "v")
-	_ = c.Set("k", "")
-	for _, k := range c.Keys() {
-		if k == "k" {
-			t.Fatal("empty value should remove the key")
+func TestEnvironmentBeatsFiles(t *testing.T) {
+	dir := t.TempDir()
+	dist := write(t, dir, ".env.dist", "DD_CORE_PROMETHEUS_URL=http://dist:9090\n")
+	t.Setenv("DD_CORE_PROMETHEUS_URL", "http://env:9090")
+	c, err := Load(dist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Get("core.prometheus_url"); got != "http://env:9090" {
+		t.Fatalf("got %q, want the environment value", got)
+	}
+	if got := c.Source("core.prometheus_url"); got != string(SourceEnv) {
+		t.Fatalf("source = %q, want %q", got, SourceEnv)
+	}
+}
+
+func TestParsing(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, ".env", `
+# a comment
+export DD_A=plain
+DD_B = "quoted value"
+DD_C='single'
+DD_D=has=equals
+`)
+	c, err := Load(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"a": "plain", "b": "quoted value", "c": "single", "d": "has=equals"} {
+		if got := c.Get(key); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
 		}
+	}
+}
+
+func TestUnprefixedKeyIsRejected(t *testing.T) {
+	// A typo like PROMETHEUS_URL= would otherwise be silently ignored, which
+	// is a miserable thing to debug.
+	dir := t.TempDir()
+	f := write(t, dir, ".env", "PROMETHEUS_URL=http://x:9090\n")
+	if _, err := Load(f); err == nil {
+		t.Fatal("expected an error for a key without the DD_ prefix")
+	}
+}
+
+func TestEnvNameMapping(t *testing.T) {
+	if got := EnvName("system.fritzhome.metric_prefix"); got != "DD_SYSTEM_FRITZHOME_METRIC_PREFIX" {
+		t.Fatalf("got %q", got)
 	}
 }
 
 func TestUnsetSystemIsEnabled(t *testing.T) {
-	// A fresh install must show its systems, not an empty shell.
-	c := newTemp(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !c.Enabled("dragon") {
 		t.Fatal("an unconfigured system should default to enabled")
 	}
-	if err := c.SetEnabled("dragon", false); err != nil {
+}
+
+func TestSystemCanBeDisabled(t *testing.T) {
+	t.Setenv("DD_SYSTEM_DRAGON_ENABLED", "0")
+	c, err := Load()
+	if err != nil {
 		t.Fatal(err)
 	}
 	if c.Enabled("dragon") {
-		t.Fatal("should be disabled after SetEnabled(false)")
+		t.Fatal("should be disabled")
 	}
 }
 
 func TestScopeIsolatesSystems(t *testing.T) {
-	c := newTemp(t)
-	a, b := c.Scoped("dragon"), c.Scoped("fritzhome")
-	if err := a.Set("secret", "from-dragon"); err != nil {
+	t.Setenv("DD_SYSTEM_DRAGON_SECRET", "from-dragon")
+	c, err := Load()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if got := b.Get("secret"); got != "" {
+	if got := c.Scoped("fritzhome").Get("secret"); got != "" {
 		t.Fatalf("fritzhome read dragon's key: %q", got)
 	}
-	if got := c.Get("system.dragon.secret"); got != "from-dragon" {
-		t.Fatalf("scoped key stored at the wrong path: %q", got)
-	}
-}
-
-func TestBoolAcceptsTheFormsTheSettingsPageWrites(t *testing.T) {
-	c := newTemp(t)
-	for _, v := range []string{"1", "true", "on"} {
-		_ = c.Set("k", v)
-		if !c.Bool("k") {
-			t.Fatalf("%q should be true", v)
-		}
-	}
-	for _, v := range []string{"0", "false", "no"} {
-		_ = c.Set("k", v)
-		if c.Bool("k") {
-			t.Fatalf("%q should be false", v)
-		}
+	if got := c.Scoped("dragon").Get("secret"); got != "from-dragon" {
+		t.Fatalf("got %q", got)
 	}
 }

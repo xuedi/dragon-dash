@@ -12,15 +12,7 @@
 
 <div class="fixed-grid has-4-cols">
   <div class="grid">
-    {{range .Stats}}
-    <div class="cell">
-      <div class="box has-text-centered">
-        <p class="heading">{{.Label}}</p>
-        <p class="title is-4">{{if .OK}}{{.Display}}{{else}}<span class="has-text-grey-light">-</span>{{end}}</p>
-        {{if and .OK .Sub}}<p class="is-size-7 has-text-grey">{{.Sub}}</p>{{end}}
-      </div>
-    </div>
-    {{end}}
+    {{range .Stats}}{{template "stat-card" .}}{{end}}
   </div>
 </div>
 

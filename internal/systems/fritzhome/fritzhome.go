@@ -1,10 +1,10 @@
-// Package fritzhome shows FRITZ!Box smart home data: plug power, energy and
-// room temperatures, plus a floor plan of where the devices actually are.
+// Package fritzhome shows FRITZ!Box smart home data and exposes it as
+// Prometheus metrics.
 //
-// Note what is NOT here: FRITZ!Box credentials. dragon-dash never talks to the
-// router. fritz_exporter does, and it holds its own copy of the password. Two
-// places storing the same secret is worse than one, so this system reads
-// everything from Prometheus like every other system.
+// It talks to the box directly over AVM's documented interfaces, so there is
+// no separate exporter to run and the credentials live in exactly one place.
+// Live values on the page come straight from the box; history comes from
+// Prometheus scraping this application's /metrics.
 package fritzhome
 
 import (
@@ -15,11 +15,11 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"sort"
 	"strings"
+	"sync"
 	"time"
 
-	"dragon-dash/internal/promql"
+	"dragon-dash/internal/fritzbox"
 	"dragon-dash/internal/system"
 )
 
@@ -28,7 +28,7 @@ var templatesFS embed.FS
 
 func init() { system.Register(&FritzHome{}) }
 
-const defaultPrefix = "fritz_"
+const defaultInterval = 60 * time.Second
 
 const examplePlan = `{
   "width": 800, "height": 500,
@@ -37,14 +37,20 @@ const examplePlan = `{
     {"name": "Kitchen",     "points": "400,20 780,20 780,180 400,180"}
   ],
   "devices": [
-    {"label": "Desk plug", "x": 120, "y": 160, "metric": "fritz_homeauto_power_watt", "match": {"name": "Desk"}}
+    {"ain": "116300343807", "x": 120, "y": 160},
+    {"ain": "139790212573", "x": 300, "y": 240}
   ]
 }`
 
 type FritzHome struct {
 	tmpl *template.Template
 	deps system.Deps
-	prom *promql.Client
+	cli  *fritzbox.Client
+
+	mu        sync.Mutex
+	cached    []fritzbox.Device
+	cachedAt  time.Time
+	cachedErr error
 }
 
 func (f *FritzHome) ID() string    { return "fritzhome" }
@@ -59,33 +65,107 @@ func (f *FritzHome) Nav() []system.NavItem {
 
 func (f *FritzHome) ConfigSchema() []system.ConfigField {
 	return []system.ConfigField{
-		{
-			Key:     "metric_prefix",
-			Label:   "Metric prefix",
-			Help:    "Series matching this prefix are treated as smart home data. Confirm against a running exporter before changing.",
-			Kind:    system.KindText,
-			Default: defaultPrefix,
-		},
-		{
-			Key:   "floorplan",
-			Label: "Floor plan (JSON)",
-			Help:  "Rooms as polygons, devices as points. Leave empty until the layout is drawn.",
-			Kind:  system.KindText,
-		},
+		{Key: "url", Label: "FRITZ!Box URL", Kind: system.KindURL, Default: "http://fritz.box",
+			Help: "The box itself. TR-064 does not need to be enabled; this uses the AHA HTTP interface."},
+		{Key: "username", Label: "Username", Kind: system.KindText,
+			Help: "A FRITZ!Box user with the Smart Home permission."},
+		{Key: "password", Label: "Password", Kind: system.KindPassword, Secret: true},
+		{Key: "interval", Label: "Poll interval", Kind: system.KindText, Default: "60s",
+			Help: "How long a reading is reused before the box is asked again."},
+		{Key: "floorplan", Label: "Floor plan (JSON)", Kind: system.KindText,
+			Help: "Rooms as polygons, devices placed by AIN. Empty until the layout is drawn."},
 	}
 }
 
 func (f *FritzHome) Register(mux *http.ServeMux, prefix string, deps system.Deps) {
 	f.deps = deps
-	f.prom = promql.New(deps.PromURL)
-	f.tmpl = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
+	f.tmpl = system.MustTemplates(templatesFS, "templates/*.html")
+	f.cli = fritzbox.New(
+		deps.Config.GetOr("url", "http://fritz.box"),
+		deps.Config.Get("username"),
+		deps.Config.Get("password"),
+	)
 }
 
-func (f *FritzHome) prefix() string {
-	if p := f.deps.Config.Get("metric_prefix"); p != "" {
-		return p
+func (f *FritzHome) configured() bool { return f.deps.Config.Get("password") != "" }
+
+func (f *FritzHome) interval() time.Duration {
+	d, err := time.ParseDuration(f.deps.Config.GetOr("interval", "60s"))
+	if err != nil || d <= 0 {
+		return defaultInterval
 	}
-	return defaultPrefix
+	return d
+}
+
+// devices returns a cached reading, refreshing when it is older than the poll
+// interval. Both the page and the /metrics scrape go through here, so opening
+// the dashboard during a scrape does not double the load on the box.
+func (f *FritzHome) devices(ctx context.Context) ([]fritzbox.Device, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if time.Since(f.cachedAt) < f.interval() && (f.cached != nil || f.cachedErr != nil) {
+		return f.cached, f.cachedErr
+	}
+	d, err := f.cli.Devices(ctx)
+	f.cached, f.cachedErr, f.cachedAt = d, err, time.Now()
+	return d, err
+}
+
+// Collect implements system.Collector.
+func (f *FritzHome) Collect(ctx context.Context) ([]system.Metric, error) {
+	if !f.configured() {
+		return nil, nil
+	}
+	devices, err := f.devices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []system.Metric
+	add := func(name, help, typ string, d fritzbox.Device, v float64) {
+		out = append(out, system.Metric{
+			Name: name, Help: help, Type: typ, Value: v,
+			Labels: map[string]string{"ain": d.AIN, "name": d.Name, "product": d.Product},
+		})
+	}
+	for _, d := range devices {
+		add("fritz_device_present", "1 when the device is reachable", "gauge", d, boolVal(d.Present))
+		if d.PowerW != nil {
+			add("fritz_power_watts", "Current power draw in watts", "gauge", d, *d.PowerW)
+		}
+		if d.EnergyKWh != nil {
+			add("fritz_energy_kwh_total", "Lifetime energy in kilowatt hours", "counter", d, *d.EnergyKWh)
+		}
+		if d.VoltageV != nil {
+			add("fritz_voltage_volts", "Mains voltage", "gauge", d, *d.VoltageV)
+		}
+		if d.TempC != nil {
+			add("fritz_temperature_celsius", "Measured temperature", "gauge", d, *d.TempC)
+		}
+		if d.HumidityP != nil {
+			add("fritz_humidity_percent", "Relative humidity", "gauge", d, *d.HumidityP)
+		}
+		if d.SwitchOn != nil {
+			add("fritz_switch_on", "1 when the switch is on", "gauge", d, boolVal(*d.SwitchOn))
+		}
+		if d.TargetC != nil {
+			add("fritz_target_temperature_celsius", "Thermostat setpoint", "gauge", d, *d.TargetC)
+		}
+		if d.BatteryPct != nil {
+			add("fritz_battery_percent", "Battery charge", "gauge", d, *d.BatteryPct)
+		}
+		if d.BatteryLow != nil {
+			add("fritz_battery_low", "1 when the battery is low", "gauge", d, boolVal(*d.BatteryLow))
+		}
+	}
+	return out, nil
+}
+
+func boolVal(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (f *FritzHome) Render(slug string, r *http.Request) (template.HTML, error) {
@@ -98,60 +178,73 @@ func (f *FritzHome) Render(slug string, r *http.Request) (template.HTML, error) 
 	return "", fmt.Errorf("unknown page %q", slug)
 }
 
-type metricRow struct{ Name, Value string }
-
 type deviceRow struct {
-	Name    string
-	Metrics []metricRow
+	Name, Product, AIN string
+	Present            bool
+	Power, Energy      string
+	Temp, Humidity     string
+	Switch             string
+	Target, Battery    string
 }
 
 func (f *FritzHome) renderOverview(r *http.Request) (template.HTML, error) {
 	data := struct {
 		Devices      []deviceRow
 		Err          string
-		Prefix       string
 		Unconfigured bool
-	}{Prefix: f.prefix(), Unconfigured: f.deps.PromURL() == ""}
+		TotalPower   string
+		Age          string
+	}{Unconfigured: !f.configured()}
 
 	if data.Unconfigured {
 		return f.exec("overview", data)
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-
-	// Discover rather than hard-code: the exporter's exact metric names depend
-	// on its version and on which devices are paired, so ask Prometheus what
-	// actually exists instead of guessing.
-	samples, err := f.prom.Query(ctx, fmt.Sprintf(`{__name__=~"%s.*"}`, regexpEscape(f.prefix())))
+	devices, err := f.devices(ctx)
 	if err != nil {
 		data.Err = err.Error()
 		return f.exec("overview", data)
 	}
 
-	byDevice := map[string][]metricRow{}
-	for _, s := range samples {
-		name := deviceLabel(s.Labels)
-		byDevice[name] = append(byDevice[name], metricRow{
-			Name:  s.Labels["__name__"],
-			Value: formatValue(s.Value),
-		})
+	var total float64
+	for _, d := range devices {
+		row := deviceRow{Name: d.Name, Product: d.Product, AIN: d.AIN, Present: d.Present}
+		if d.PowerW != nil {
+			total += *d.PowerW
+			row.Power = fmt.Sprintf("%.1f W", *d.PowerW)
+		}
+		if d.EnergyKWh != nil {
+			row.Energy = fmt.Sprintf("%.1f kWh", *d.EnergyKWh)
+		}
+		if d.TempC != nil {
+			row.Temp = fmt.Sprintf("%.1f °C", *d.TempC)
+		}
+		if d.HumidityP != nil {
+			row.Humidity = fmt.Sprintf("%.0f %%", *d.HumidityP)
+		}
+		if d.SwitchOn != nil {
+			row.Switch = "off"
+			if *d.SwitchOn {
+				row.Switch = "on"
+			}
+		}
+		if d.TargetC != nil {
+			row.Target = fmt.Sprintf("%.1f °C", *d.TargetC)
+		}
+		if d.BatteryPct != nil {
+			row.Battery = fmt.Sprintf("%.0f %%", *d.BatteryPct)
+		}
+		data.Devices = append(data.Devices, row)
 	}
-	names := make([]string, 0, len(byDevice))
-	for n := range byDevice {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		rows := byDevice[n]
-		sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
-		data.Devices = append(data.Devices, deviceRow{Name: n, Metrics: rows})
-	}
+	data.TotalPower = fmt.Sprintf("%.1f W", total)
+	f.mu.Lock()
+	data.Age = time.Since(f.cachedAt).Round(time.Second).String()
+	f.mu.Unlock()
 	return f.exec("overview", data)
 }
 
-// plan is the on-disk floor plan format. Kept deliberately simple so it can be
-// hand-written or generated from a drawing.
 type plan struct {
 	Width  int `json:"width"`
 	Height int `json:"height"`
@@ -160,11 +253,10 @@ type plan struct {
 		Points string `json:"points"`
 	} `json:"rooms"`
 	Devices []struct {
-		Label  string            `json:"label"`
-		X      float64           `json:"x"`
-		Y      float64           `json:"y"`
-		Metric string            `json:"metric"`
-		Match  map[string]string `json:"match"`
+		AIN   string  `json:"ain"`
+		Label string  `json:"label"`
+		X     float64 `json:"x"`
+		Y     float64 `json:"y"`
 	} `json:"devices"`
 }
 
@@ -189,7 +281,6 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 	if strings.TrimSpace(raw) == "" {
 		return f.exec("floorplan", data)
 	}
-
 	var p plan
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
 		return "", fmt.Errorf("floor plan JSON is invalid: %w", err)
@@ -203,21 +294,38 @@ func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
 	}
 	for _, rm := range p.Rooms {
 		x, y := firstPoint(rm.Points)
-		data.Rooms = append(data.Rooms, room{Name: rm.Name, Points: rm.Points, LabelX: x + 8, LabelY: y + 20})
+		data.Rooms = append(data.Rooms, room{Name: rm.Name, Points: rm.Points, LabelX: x + 10, LabelY: y + 24})
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-	for _, d := range p.Devices {
-		value := "-"
-		if d.Metric != "" && f.deps.PromURL() != "" {
-			if v, ok, err := f.prom.QueryOne(ctx, selector(d.Metric, d.Match)); err == nil && ok {
-				value = formatValue(v)
+	byAIN := map[string]fritzbox.Device{}
+	if f.configured() {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		if devices, err := f.devices(ctx); err == nil {
+			for _, d := range devices {
+				byAIN[d.AIN] = d
+			}
+		}
+	}
+	for _, pd := range p.Devices {
+		d, ok := byAIN[pd.AIN]
+		name, value, colour := pd.Label, "n/a", "#b5b5b5"
+		if ok {
+			if name == "" {
+				name = d.Name
+			}
+			switch {
+			case d.PowerW != nil:
+				value = fmt.Sprintf("%.0f W", *d.PowerW)
+				colour = "hsl(171, 100%, 41%)"
+			case d.TempC != nil:
+				value = fmt.Sprintf("%.1f °C", *d.TempC)
+				colour = "hsl(229, 53%, 53%)"
 			}
 		}
 		data.Devices = append(data.Devices, dev{
-			Name: d.Label, Value: value, Colour: "#485fc7",
-			X: d.X, Y: d.Y, LabelY: d.Y + 26,
+			Name: name, Value: value, Colour: colour,
+			X: pd.X, Y: pd.Y, LabelY: pd.Y + 26,
 		})
 	}
 	return f.exec("floorplan", data)
@@ -231,39 +339,6 @@ func (f *FritzHome) exec(name string, data any) (template.HTML, error) {
 	return template.HTML(buf.String()), nil
 }
 
-// deviceLabel picks whichever label the exporter uses to name a device.
-func deviceLabel(labels map[string]string) string {
-	for _, k := range []string{"name", "device_name", "ain", "device", "id"} {
-		if v := labels[k]; v != "" {
-			return v
-		}
-	}
-	return "(unlabelled)"
-}
-
-func selector(metric string, match map[string]string) string {
-	if len(match) == 0 {
-		return metric
-	}
-	parts := make([]string, 0, len(match))
-	for k, v := range match {
-		parts = append(parts, fmt.Sprintf("%s=%q", k, v))
-	}
-	sort.Strings(parts)
-	return metric + "{" + strings.Join(parts, ",") + "}"
-}
-
-func formatValue(v float64) string {
-	switch {
-	case v == float64(int64(v)):
-		return fmt.Sprintf("%d", int64(v))
-	case v < 10:
-		return fmt.Sprintf("%.2f", v)
-	default:
-		return fmt.Sprintf("%.1f", v)
-	}
-}
-
 func firstPoint(points string) (float64, float64) {
 	fields := strings.Fields(points)
 	if len(fields) == 0 {
@@ -272,18 +347,4 @@ func firstPoint(points string) (float64, float64) {
 	var x, y float64
 	_, _ = fmt.Sscanf(fields[0], "%f,%f", &x, &y)
 	return x, y
-}
-
-// regexpEscape quotes the few characters that could turn a prefix into a
-// wildcard. A prefix comes from config, so it is trusted but not necessarily
-// regexp-safe.
-func regexpEscape(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if strings.ContainsRune(`\.+*?()|[]{}^$`, r) {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }

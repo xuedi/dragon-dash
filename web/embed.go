@@ -10,5 +10,10 @@ import "embed"
 //go:embed templates/*.html
 var Templates embed.FS
 
+// Components are the shared partials every system's template set includes.
+//
+//go:embed templates/components.html
+var Components embed.FS
+
 //go:embed static
 var Static embed.FS

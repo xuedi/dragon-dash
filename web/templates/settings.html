@@ -1,55 +1,59 @@
 {{define "settings"}}
 <h1 class="title is-4">Settings</h1>
 
-<div class="notification is-warning is-light">
-  <strong>No authentication.</strong> Anyone who can reach this page can read the
-  values below, including passwords. Keep dragon-dash on the LAN.
+<div class="notification is-info is-light">
+  <p><strong>Configuration is read-only.</strong> It is loaded from env files and the environment at
+  startup, so there is nothing to submit here and nothing an unauthenticated visitor can change.</p>
+  <p class="mt-2 is-size-7">Files read, later ones win, the real environment wins over all:
+    {{range .Files}}<code class="mr-2">{{.}}</code>{{end}}
+    Edit a file and restart to apply.</p>
 </div>
 
-<form method="post" action="/settings">
-  <div class="box">
-    <h2 class="title is-6">Core</h2>
-    <div class="field">
-      <label class="label">Prometheus URL</label>
-      <div class="control">
-        <input class="input" type="url" name="core.prometheus_url"
-               value="{{.PrometheusURL}}" placeholder="http://127.0.0.1:9090">
-      </div>
-      <p class="help">Every metric on every page is read from here. Without it the dashboards stay empty.</p>
+<div class="box">
+  <h2 class="title is-6">Core</h2>
+  <table class="table is-fullwidth">
+    <tbody>
+      <tr>
+        <td style="width:16rem"><strong>{{.Prometheus.Label}}</strong><br>
+          <code class="is-size-7">{{.Prometheus.EnvName}}</code></td>
+        <td>
+          {{if .Prometheus.Set}}{{.Prometheus.Value}}{{else}}<span class="tag is-warning">not set</span>{{end}}
+          {{if .Prometheus.Source}}<span class="tag is-light ml-2">{{.Prometheus.Source}}</span>{{end}}
+          <p class="help">{{.Prometheus.Help}}</p>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+{{range .Systems}}
+<div class="box">
+  <div class="level mb-3">
+    <div class="level-left"><h2 class="title is-6 mb-0">{{.Title}}</h2></div>
+    <div class="level-right">
+      {{if .Enabled}}<span class="tag is-success">shown</span>{{else}}<span class="tag">hidden</span>{{end}}
+      <code class="is-size-7 ml-2">{{.EnvName}}</code>
     </div>
   </div>
 
-  {{range .Systems}}
-  <div class="box">
-    <div class="level mb-3">
-      <div class="level-left"><h2 class="title is-6 mb-0">{{.Title}}</h2></div>
-      <div class="level-right">
-        <label class="checkbox">
-          <input type="checkbox" name="enabled.{{.ID}}" {{if .Enabled}}checked{{end}}> shown in the navbar
-        </label>
-      </div>
-    </div>
-
-    {{range .Fields}}
-    <div class="field">
-      <label class="label">{{.Label}}</label>
-      <div class="control">
-        {{if eq .Kind "bool"}}
-          <label class="checkbox">
-            <input type="checkbox" name="{{.Name}}" {{if .Checked}}checked{{end}}> enabled
-          </label>
-        {{else}}
-          <input class="input" type="{{.InputType}}" name="{{.Name}}" value="{{.Value}}" placeholder="{{.Default}}">
-        {{end}}
-      </div>
-      {{if .Help}}<p class="help">{{.Help}}</p>{{end}}
-    </div>
-    {{end}}
-    {{if not .Fields}}<p class="has-text-grey is-size-7">No settings.</p>{{end}}
-  </div>
+  {{if .Fields}}
+  <table class="table is-fullwidth">
+    <tbody>
+      {{range .Fields}}
+      <tr>
+        <td style="width:16rem"><strong>{{.Label}}</strong><br><code class="is-size-7">{{.EnvName}}</code></td>
+        <td>
+          {{if .Set}}{{.Value}}{{else if .Value}}<span class="has-text-grey">{{.Value}}</span>{{else}}<span class="tag is-warning">not set</span>{{end}}
+          {{if .Source}}<span class="tag is-light ml-2">{{.Source}}</span>{{end}}
+          {{if .Help}}<p class="help">{{.Help}}</p>{{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+    <p class="has-text-grey is-size-7">No settings.</p>
   {{end}}
-
-  <button class="button is-primary" type="submit">Save</button>
-  {{if .Saved}}<span class="tag is-success ml-3">Saved</span>{{end}}
-</form>
+</div>
+{{end}}
 {{end}}

@@ -1,0 +1,23 @@
+{{/*
+  Shared components, parsed into every system's template set by
+  system.Templates. Keep them thin: a component exists to stop the same Bulma
+  markup being written twice, not to build a widget library.
+*/}}
+
+{{/* stat-card expects: .Label .Display .Sub .OK */}}
+{{define "stat-card"}}
+<div class="cell">
+  <div class="box has-text-centered">
+    <p class="heading">{{.Label}}</p>
+    <p class="title is-4">{{if .OK}}{{.Display}}{{else}}<span class="has-text-grey-light">n/a</span>{{end}}</p>
+    {{if and .OK .Sub}}<p class="is-size-7 has-text-grey">{{.Sub}}</p>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* notice expects: .Kind (bulma colour suffix) .Title .Body */}}
+{{define "notice"}}
+<div class="notification is-{{.Kind}}">
+  {{if .Title}}<strong>{{.Title}}</strong><br>{{end}}{{.Body}}
+</div>
+{{end}}

@@ -1,7 +1,11 @@
 # Prometheus
 
-Every metric on every page comes from Prometheus. dragon-dash reads `/proc` for nothing and stores
-no samples of its own.
+Server metrics come from Prometheus. dragon-dash reads `/proc` for nothing and stores no samples of
+its own.
+
+Smart home data is the exception in one direction only: dragon-dash polls the FRITZ!Box itself and
+publishes the result at `/metrics`, which Prometheus scrapes. The live page shows the poll directly;
+the charts read the same numbers back out of Prometheus.
 
 ## Why
 

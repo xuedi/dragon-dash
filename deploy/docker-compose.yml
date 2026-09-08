@@ -1,30 +1,27 @@
-name: dragon-dash
-
 # Deploy target: dragon:/var/docker/dragon-dash/
 #
 # Not in use yet, development happens on the desktop (see ../README.md).
-# Only dragon-dash is reachable from the LAN; the other two are internal.
+# There is no FRITZ!Box exporter here: dragon-dash polls the box itself and
+# publishes /metrics, so the credentials live in exactly one place.
+name: dragon-dash
 
 services:
-  fritz-exporter:
-    image: pdreker/fritz_exporter:3
-    container_name: dragon-dash-fritz-exporter
+  dragon-dash:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: dragon-dash
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      FRITZ_HOSTNAME: ${FRITZ_HOSTNAME:?set in .env}
-      FRITZ_USERNAME: ${FRITZ_USERNAME:?set in .env}
-      FRITZ_PASSWORD: ${FRITZ_PASSWORD:?set in .env}
-      # MUST be 0.0.0.0. The v3.0.0 default is 127.0.0.1, which inside a
-      # container means "this container only" and Prometheus cannot scrape it.
-      FRITZ_LISTEN_ADDRESS: "0.0.0.0"
-      FRITZ_PORT: "9787"
-      FRITZ_LOG_LEVEL: INFO
-      # Off by default and left off: per-host and per-wifi-client series are the
-      # main cardinality risk in this stack. Enable deliberately, not casually.
-      FRITZ_HOST_INFO: "false"
-      FRITZ_WIFI_CLIENT_INFO: "false"
-    expose:
-      - "9787"
+      DD_CORE_PROMETHEUS_URL: http://prometheus:9090
+    ports:
+      # Port 80 is a mapping, not a privilege: the process listens on 8080
+      # inside the container and never needs root or CAP_NET_BIND_SERVICE.
+      - "80:8080"
+    depends_on:
+      - prometheus
     networks:
       - dash
 
@@ -36,7 +33,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      # The default is 15d. This project exists to keep data forever.
+      # The default is 15d. This project exists to keep data indefinitely.
       - --storage.tsdb.retention.time=10y
       - --web.listen-address=0.0.0.0:9090
       # Needed for the snapshot backup described in the README.
@@ -45,26 +42,22 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./data/prometheus:/prometheus
     ports:
-      # Loopback only. Reach it from a desktop with:
+      # Loopback only, the admin API is enabled.
       #   ssh -N -L 9090:127.0.0.1:9090 dragon
       - "127.0.0.1:9090:9090"
     networks:
       - dash
 
-  dragon-dash:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    container_name: dragon-dash
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: dragon-dash-node-exporter
     restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.hwmon
     volumes:
-      - ./data/dragon-dash:/data
-    ports:
-      # Port 80 is a mapping, not a privilege: the process listens on 8080
-      # inside the container and never needs root or CAP_NET_BIND_SERVICE.
-      - "80:8080"
-    depends_on:
-      - prometheus
+      - /:/host:ro,rslave
     networks:
       - dash
 

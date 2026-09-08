@@ -1,36 +1,56 @@
 {{define "overview"}}
-<h1 class="title is-4">FritzHome</h1>
+<div class="level">
+  <div class="level-left"><h1 class="title is-4 mb-0">FritzHome</h1></div>
+  {{if .TotalPower}}
+  <div class="level-right">
+    <span class="has-text-grey is-size-7 mr-3">reading {{.Age}} old</span>
+    <span class="tag is-primary is-medium">{{.TotalPower}} total</span>
+  </div>
+  {{end}}
+</div>
 
 {{if .Unconfigured}}
   <div class="notification is-warning">
-    <strong>Prometheus is not configured.</strong> Set its URL in <a href="/settings">Settings</a>.
+    <strong>No FRITZ!Box credentials.</strong>
+    Set <code>DD_SYSTEM_FRITZHOME_USERNAME</code> and <code>DD_SYSTEM_FRITZHOME_PASSWORD</code>
+    in <code>.env.local</code>, then restart. The user needs the Smart Home permission.
   </div>
 {{else if .Err}}
-  <div class="notification is-danger"><strong>Could not read metrics.</strong><br>{{.Err}}</div>
-{{else if not .Devices}}
-  <div class="notification is-info is-light">
-    <strong>No <code>{{.Prefix}}*</code> metrics found in Prometheus.</strong>
-    <p class="mt-2">Either <code>fritz_exporter</code> is not running or Prometheus is not scraping it.
-    Check the exporter's own target in Prometheus first.</p>
-  </div>
+  <div class="notification is-danger"><strong>Could not reach the FRITZ!Box.</strong><br>{{.Err}}</div>
 {{else}}
-  <table class="table is-fullwidth is-striped is-hoverable">
-    <thead><tr><th>Device</th><th>Metric</th><th class="has-text-right">Value</th></tr></thead>
+  <table class="table is-fullwidth is-hoverable">
+    <thead>
+      <tr>
+        <th>Device</th><th>Model</th>
+        <th class="has-text-right">Power</th>
+        <th class="has-text-right">Energy</th>
+        <th class="has-text-right">Temp</th>
+        <th class="has-text-right">Humidity</th>
+        <th class="has-text-right">Target</th>
+        <th class="has-text-right">Battery</th>
+        <th>Switch</th>
+      </tr>
+    </thead>
     <tbody>
       {{range .Devices}}
-        {{$d := .}}
-        {{range $i, $m := .Metrics}}
-        <tr>
-          <td>{{if eq $i 0}}<strong>{{$d.Name}}</strong>{{end}}</td>
-          <td><code class="is-size-7">{{$m.Name}}</code></td>
-          <td class="has-text-right">{{$m.Value}}</td>
-        </tr>
-        {{end}}
+      <tr{{if not .Present}} class="has-text-grey-light"{{end}}>
+        <td><strong>{{.Name}}</strong>{{if not .Present}} <span class="tag is-light">absent</span>{{end}}</td>
+        <td class="is-size-7 has-text-grey">{{.Product}}</td>
+        <td class="has-text-right">{{.Power}}</td>
+        <td class="has-text-right">{{.Energy}}</td>
+        <td class="has-text-right">{{.Temp}}</td>
+        <td class="has-text-right">{{.Humidity}}</td>
+        <td class="has-text-right">{{.Target}}</td>
+        <td class="has-text-right">{{.Battery}}</td>
+        <td>{{if eq .Switch "on"}}<span class="tag is-primary is-light">on</span>
+            {{else if eq .Switch "off"}}<span class="tag is-light">off</span>{{end}}</td>
+      </tr>
       {{end}}
     </tbody>
   </table>
   <p class="is-size-7 has-text-grey">
-    {{len .Devices}} device(s) discovered from series matching <code>{{.Prefix}}*</code>.
+    Read directly from the box. The same reading feeds <code>/metrics</code>, which Prometheus
+    scrapes for history.
   </p>
 {{end}}
 {{end}}

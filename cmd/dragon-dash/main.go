@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"dragon-dash/internal/config"
@@ -26,8 +27,8 @@ import (
 func main() {
 	addr := flag.String("addr", envOr("DRAGON_DASH_ADDR", "127.0.0.1:8080"),
 		"listen address; use :8080 to accept connections from the LAN")
-	cfgPath := flag.String("config", envOr("DRAGON_DASH_CONFIG", "config.json"),
-		"path to the config file")
+	envFiles := flag.String("env", ".env.dist,.env.local",
+		"comma-separated env files, later ones win; the real environment wins over all")
 	debug := flag.Bool("debug", false, "verbose logging")
 	flag.Parse()
 
@@ -37,13 +38,14 @@ func main() {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 
-	cfg, err := config.Load(*cfgPath)
+	files := strings.Split(*envFiles, ",")
+	cfg, err := config.Load(files...)
 	if err != nil {
-		log.Error("loading config", "path", *cfgPath, "err", err)
+		log.Error("loading config", "err", err)
 		os.Exit(1)
 	}
 
-	srv, err := server.New(cfg, log)
+	srv, err := server.New(cfg, log, files)
 	if err != nil {
 		log.Error("starting server", "err", err)
 		os.Exit(1)
@@ -59,7 +61,7 @@ func main() {
 		IdleTimeout: 60 * time.Second,
 	}
 
-	log.Info("dragon-dash listening", "addr", *addr, "config", *cfgPath)
+	log.Info("dragon-dash listening", "addr", *addr, "env", *envFiles)
 	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("server stopped", "err", err)
 		os.Exit(1)

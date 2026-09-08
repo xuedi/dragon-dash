@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="en" class="theme-dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,15 +9,20 @@
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/uPlot.iife.min.js" defer></script>
 <style>
-  body { min-height: 100vh; }
-  .dd-side { min-height: calc(100vh - 3.25rem); border-right: 1px solid var(--bulma-border); }
-  .dd-main { padding: 1.5rem; }
-  .uplot { margin: 0 auto; }
+  /* Bulma's own theming hooks. Everything else on the page is a stock Bulma
+     component, so there are no selector overrides to break on an upgrade. */
+  :root {
+    --bulma-family-primary: Inter, "SF Pro", "Segoe UI", Roboto, Oxygen, Ubuntu,
+      "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --bulma-radius: 0.375rem;
+    --bulma-radius-large: 0.75rem;
+    --bulma-body-background-color: hsl(221, 14%, 98%);
+  }
 </style>
 </head>
 <body>
 
-<nav class="navbar is-primary" role="navigation" aria-label="main navigation">
+<nav class="navbar has-shadow" role="navigation" aria-label="main navigation">
   <div class="navbar-brand">
     <a class="navbar-item has-text-weight-bold" href="/">dragon-dash</a>
   </div>
@@ -28,7 +33,7 @@
       {{end}}
     </div>
     <div class="navbar-end">
-      <span class="navbar-item is-size-7 has-text-weight-light">v{{.Version}}</span>
+      <span class="navbar-item is-size-7 has-text-grey">v{{.Version}}</span>
       <a class="navbar-item {{if .SettingsActive}}is-active has-text-weight-semibold{{end}}" href="/settings">Settings</a>
     </div>
   </div>
@@ -36,20 +41,20 @@
 
 <div class="columns is-gapless">
   {{if .Nav}}
-  <aside class="column is-narrow dd-side p-4" style="min-width: 14rem;">
-    <p class="menu-label">{{.ActiveTitle}}</p>
-    <ul class="menu-list">
-      {{range .Nav}}
-        <li><a href="{{.Href}}" class="{{if .Active}}is-active{{end}}">{{.Title}}</a></li>
-      {{end}}
-    </ul>
-  </aside>
+  <div class="column is-2 p-4 has-background-white">
+    <aside class="menu">
+      <p class="menu-label">{{.ActiveTitle}}</p>
+      <ul class="menu-list">
+        {{range .Nav}}
+          <li><a href="{{.Href}}" class="{{if .Active}}is-active{{end}}">{{.Title}}</a></li>
+        {{end}}
+      </ul>
+    </aside>
+  </div>
   {{end}}
-  <main class="column dd-main">
+  <main class="column p-5">
     {{if .Error}}
-      <div class="notification is-danger">
-        <strong>{{.PageTitle}} failed to render.</strong><br>{{.Error}}
-      </div>
+      {{template "notice" (dict "Kind" "danger" "Title" .PageTitle "Body" .Error)}}
     {{end}}
     {{.Body}}
   </main>

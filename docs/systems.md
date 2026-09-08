@@ -53,6 +53,24 @@ So: compile-time registration. The interface above is deliberately narrow and fr
 callbacks, so if third-party plugins ever earn their keep, it is the seam they would go through
 without changing how existing systems are written.
 
+## Collecting metrics
+
+A system may also implement `system.Collector`:
+
+```go
+type Collector interface {
+    Collect(ctx context.Context) ([]Metric, error)
+}
+```
+
+The shell then exposes it at `/metrics` in the Prometheus text format. This is what lets
+dragon-dash gather *and* display the same data without a separate exporter process: FritzHome polls
+the box, the page shows the live reading, and Prometheus scrapes the identical reading for history.
+
+A collector that fails does not fail the scrape. The shell emits
+`dragon_dash_collector_up{system="..."} 0` instead, so Prometheus records that the collector is
+down rather than simply showing a gap.
+
 ## Adding one
 
 1. Create `internal/systems/<name>/`, implement the interface, call `system.Register` in `init()`.

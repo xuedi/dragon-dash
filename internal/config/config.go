@@ -1,51 +1,113 @@
-// Package config is a small persistent key/value store backed by one JSON file.
+// Package config loads read-only configuration from env files and the
+// environment.
 //
-// Deliberately not SQLite: everything kept here is configuration, a handful of
-// strings, and a plain JSON file is transparent, trivially backed up, editable
-// by hand when something goes wrong, and keeps the binary on the standard
-// library alone. If dragon-dash ever needs to store real data it should go to
-// Prometheus, not here.
+// Nothing here is writable at runtime. That is the point: with no write path
+// there is no settings form to protect, which is what makes running on a LAN
+// without authentication defensible. The app can be pointed somewhere new only
+// by editing a file and restarting it.
+//
+// Sources are applied in order, each overriding the last:
+//
+//	.env.dist    committed defaults
+//	.env.local   gitignored, holds credentials
+//	environment  wins over both, so containers and systemd need no files
 package config
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 )
 
-type Config struct {
-	path   string
-	mu     sync.RWMutex
-	values map[string]string
+// Prefix keeps our variables out of the way of everything else in the
+// environment.
+const Prefix = "DD_"
+
+type source string
+
+const (
+	SourceDist source = ".env.dist"
+	SourceEnv  source = "environment"
+)
+
+type value struct {
+	Value  string
+	Source source
 }
 
-// Load reads path, creating an empty config if it does not exist.
-func Load(path string) (*Config, error) {
-	c := &Config{path: path, values: map[string]string{}}
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return c, nil
+type Config struct {
+	values map[string]value
+}
+
+// Load reads the given env files in order, then overlays the process
+// environment. A missing file is not an error: a deployment may configure
+// everything through real environment variables.
+func Load(files ...string) (*Config, error) {
+	c := &Config{values: map[string]value{}}
+	for _, f := range files {
+		if err := c.loadFile(f); err != nil {
+			return nil, err
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	if err := json.Unmarshal(b, &c.values); err != nil {
-		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	for _, kv := range os.Environ() {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || !strings.HasPrefix(k, Prefix) {
+			continue
+		}
+		c.values[k] = value{Value: v, Source: SourceEnv}
 	}
 	return c, nil
 }
 
-func (c *Config) Get(key string) string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.values[key]
+func (c *Config) loadFile(path string) error {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	for line := 1; sc.Scan(); line++ {
+		text := strings.TrimSpace(sc.Text())
+		if text == "" || strings.HasPrefix(text, "#") {
+			continue
+		}
+		text = strings.TrimPrefix(text, "export ")
+		k, v, ok := strings.Cut(text, "=")
+		if !ok {
+			return fmt.Errorf("%s:%d: expected KEY=value", path, line)
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		// Quotes are stripped so a value may contain spaces or a leading #.
+		if len(v) >= 2 && (v[0] == '"' && v[len(v)-1] == '"' || v[0] == '\'' && v[len(v)-1] == '\'') {
+			v = v[1 : len(v)-1]
+		}
+		if !strings.HasPrefix(k, Prefix) {
+			return fmt.Errorf("%s:%d: %q must start with %s", path, line, k, Prefix)
+		}
+		c.values[k] = value{Value: v, Source: source(path)}
+	}
+	return sc.Err()
 }
 
-// GetOr returns the stored value, or def when unset.
+// envName turns a dotted key into its environment variable name:
+// system.fritzhome.metric_prefix becomes DD_SYSTEM_FRITZHOME_METRIC_PREFIX.
+func envName(key string) string {
+	return Prefix + strings.ToUpper(strings.NewReplacer(".", "_", "-", "_").Replace(key))
+}
+
+// EnvName exposes the variable name a dotted key maps to, so the settings page
+// can tell the reader exactly what to put in a file.
+func EnvName(key string) string { return envName(key) }
+
+func (c *Config) Get(key string) string { return c.values[envName(key)].Value }
+
 func (c *Config) GetOr(key, def string) string {
 	if v := c.Get(key); v != "" {
 		return v
@@ -54,25 +116,31 @@ func (c *Config) GetOr(key, def string) string {
 }
 
 func (c *Config) Bool(key string) bool {
-	v := c.Get(key)
-	return v == "1" || v == "true" || v == "on"
-}
-
-func (c *Config) Set(key, value string) error {
-	c.mu.Lock()
-	if value == "" {
-		delete(c.values, key)
-	} else {
-		c.values[key] = value
+	switch strings.ToLower(c.Get(key)) {
+	case "1", "true", "yes", "on":
+		return true
 	}
-	c.mu.Unlock()
-	return c.save()
+	return false
 }
 
-// Keys returns every set key, sorted. Useful for debugging and tests.
+// Source reports which file or environment a key came from, for the settings
+// page. Knowing a value came from .env.dist rather than .env.local is usually
+// the answer when something is unexpectedly empty.
+func (c *Config) Source(key string) string {
+	v, ok := c.values[envName(key)]
+	if !ok {
+		return ""
+	}
+	return string(v.Source)
+}
+
+func (c *Config) Has(key string) bool {
+	_, ok := c.values[envName(key)]
+	return ok
+}
+
+// Keys returns every set variable name, sorted.
 func (c *Config) Keys() []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	out := make([]string, 0, len(c.values))
 	for k := range c.values {
 		out = append(out, k)
@@ -81,30 +149,18 @@ func (c *Config) Keys() []string {
 	return out
 }
 
-// save writes to a temp file and renames, so an interrupted write cannot
-// truncate a good config.
-func (c *Config) save() error {
-	c.mu.RLock()
-	b, err := json.MarshalIndent(c.values, "", "  ")
-	c.mu.RUnlock()
-	if err != nil {
-		return err
+// Enabled reports whether a system should be shown. Unset means enabled, so a
+// fresh checkout shows everything rather than an empty shell.
+func (c *Config) Enabled(systemID string) bool {
+	key := "system." + systemID + ".enabled"
+	if !c.Has(key) {
+		return true
 	}
-	if dir := filepath.Dir(c.path); dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-	}
-	tmp := c.path + ".tmp"
-	// 0600: this file holds the FRITZ!Box password.
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, c.path)
+	return c.Bool(key)
 }
 
-// Scoped returns a view restricted to one system's namespace. Passed to
-// systems so a system cannot read another system's secrets by accident.
+// Scoped restricts a system to its own namespace so it cannot read another
+// system's credentials by accident.
 func (c *Config) Scoped(systemID string) *Scope {
 	return &Scope{c: c, prefix: "system." + systemID + "."}
 }
@@ -114,27 +170,8 @@ type Scope struct {
 	prefix string
 }
 
-func (s *Scope) Get(key string) string       { return s.c.Get(s.prefix + key) }
-func (s *Scope) Set(key, value string) error { return s.c.Set(s.prefix+key, value) }
-func (s *Scope) Bool(key string) bool        { return s.c.Bool(s.prefix + key) }
-func (s *Scope) Prefix() string              { return s.prefix }
-func (s *Scope) Has(key string) bool         { return s.Get(key) != "" }
-func (s *Scope) TrimKey(full string) (string, bool) {
-	return strings.CutPrefix(full, s.prefix)
-}
-
-// Enabled reports whether a system is switched on. Systems are always compiled
-// in; this is the only thing that decides whether they appear.
-func (c *Config) Enabled(systemID string) bool {
-	// Unset means enabled: a fresh install shows everything rather than
-	// presenting an empty shell with no clue what to do.
-	v := c.Get("system." + systemID + ".enabled")
-	return v == "" || v == "1" || v == "true"
-}
-
-func (c *Config) SetEnabled(systemID string, on bool) error {
-	if on {
-		return c.Set("system."+systemID+".enabled", "1")
-	}
-	return c.Set("system."+systemID+".enabled", "0")
-}
+func (s *Scope) Get(key string) string      { return s.c.Get(s.prefix + key) }
+func (s *Scope) GetOr(k, def string) string { return s.c.GetOr(s.prefix+k, def) }
+func (s *Scope) Bool(key string) bool       { return s.c.Bool(s.prefix + key) }
+func (s *Scope) Source(key string) string   { return s.c.Source(s.prefix + key) }
+func (s *Scope) EnvName(key string) string  { return envName(s.prefix + key) }

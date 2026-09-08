@@ -7,11 +7,12 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
-	"strings"
+	"time"
 
 	"dragon-dash/internal/config"
 	"dragon-dash/internal/system"
@@ -22,18 +23,20 @@ import (
 const prometheusURLKey = "core.prometheus_url"
 
 type Server struct {
-	cfg  *config.Config
-	log  *slog.Logger
-	tmpl *template.Template
-	mux  *http.ServeMux
+	cfg   *config.Config
+	log   *slog.Logger
+	tmpl  *template.Template
+	mux   *http.ServeMux
+	files []string
 }
 
-func New(cfg *config.Config, log *slog.Logger) (*Server, error) {
-	tmpl, err := template.ParseFS(web.Templates, "templates/*.html")
+func New(cfg *config.Config, log *slog.Logger, files []string) (*Server, error) {
+	tmpl, err := template.New("").Funcs(template.FuncMap{"dict": dict}).
+		ParseFS(web.Templates, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
-	s := &Server{cfg: cfg, log: log, tmpl: tmpl, mux: http.NewServeMux()}
+	s := &Server{cfg: cfg, log: log, tmpl: tmpl, mux: http.NewServeMux(), files: files}
 	s.routes()
 	return s, nil
 }
@@ -48,7 +51,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /static/", http.FileServerFS(web.Static))
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /settings", s.handleSettings)
-	s.mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.mux.HandleFunc("GET /s/{system}/{$}", s.handleSystemDefault)
 	s.mux.HandleFunc("GET /s/{system}/{slug}", s.handleSystemPage)
 
@@ -195,41 +198,72 @@ func (s *Server) render(w http.ResponseWriter, d layoutData) {
 }
 
 // ---- settings -------------------------------------------------------------
+//
+// Read-only. Configuration comes from .env files and the environment, so this
+// page reports what is in effect and where each value came from. There is no
+// form to submit, which is why an unauthenticated LAN deployment is defensible.
 
 type settingsField struct {
-	Name, Label, Help string
-	Kind, InputType   string
-	Value, Default    string
-	Checked           bool
+	Label, Help string
+	EnvName     string
+	Value       string
+	Source      string
+	Set         bool
 }
 
 type settingsSystem struct {
 	ID, Title string
 	Enabled   bool
+	EnvName   string
 	Fields    []settingsField
 }
 
 type settingsData struct {
-	PrometheusURL string
-	Systems       []settingsSystem
-	Saved         bool
+	Prometheus settingsField
+	Systems    []settingsSystem
+	Files      []string
 }
 
-func (s *Server) settingsData(saved bool) settingsData {
-	d := settingsData{PrometheusURL: s.cfg.Get(prometheusURLKey), Saved: saved}
-	for _, sys := range system.All() { // all, not just enabled: you need to switch them back on
-		ss := settingsSystem{ID: sys.ID(), Title: sys.Title(), Enabled: s.cfg.Enabled(sys.ID())}
+const redacted = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+
+func (s *Server) settingsData() settingsData {
+	promKey := prometheusURLKey
+	d := settingsData{
+		Files: s.files,
+		Prometheus: settingsField{
+			Label:   "Prometheus URL",
+			Help:    "Every metric on every page is read from here.",
+			EnvName: config.EnvName(promKey),
+			Value:   s.cfg.Get(promKey),
+			Source:  s.cfg.Source(promKey),
+			Set:     s.cfg.Has(promKey),
+		},
+	}
+	for _, sys := range system.All() {
+		enabledKey := "system." + sys.ID() + ".enabled"
+		ss := settingsSystem{
+			ID:      sys.ID(),
+			Title:   sys.Title(),
+			Enabled: s.cfg.Enabled(sys.ID()),
+			EnvName: config.EnvName(enabledKey),
+		}
 		scope := s.cfg.Scoped(sys.ID())
 		for _, f := range sys.ConfigSchema() {
+			val := scope.Get(f.Key)
+			set := val != ""
+			if f.Secret && set {
+				val = redacted
+			}
+			if !set && f.Default != "" {
+				val = f.Default + "  (default)"
+			}
 			ss.Fields = append(ss.Fields, settingsField{
-				Name:      scope.Prefix() + f.Key,
-				Label:     f.Label,
-				Help:      f.Help,
-				Kind:      string(f.Kind),
-				InputType: inputType(f.Kind),
-				Value:     scope.Get(f.Key),
-				Default:   f.Default,
-				Checked:   scope.Bool(f.Key),
+				Label:   f.Label,
+				Help:    f.Help,
+				EnvName: scope.EnvName(f.Key),
+				Value:   val,
+				Source:  scope.Source(f.Key),
+				Set:     set,
 			})
 		}
 		d.Systems = append(d.Systems, ss)
@@ -237,63 +271,9 @@ func (s *Server) settingsData(saved bool) settingsData {
 	return d
 }
 
-func inputType(k system.FieldKind) string {
-	switch k {
-	case system.KindPassword:
-		return "password"
-	case system.KindURL:
-		return "url"
-	default:
-		return "text"
-	}
-}
-
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
-	s.renderSettings(w, false)
-}
-
-func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-
-	if err := s.cfg.Set(prometheusURLKey, strings.TrimSpace(r.FormValue(prometheusURLKey))); err != nil {
-		s.log.Error("saving prometheus url", "err", err)
-	}
-
-	for _, sys := range system.All() {
-		// Unchecked checkboxes are simply absent from the form body, which is
-		// why enablement is derived from presence rather than from a value.
-		on := r.Form.Has("enabled." + sys.ID())
-		if err := s.cfg.SetEnabled(sys.ID(), on); err != nil {
-			s.log.Error("saving enabled flag", "system", sys.ID(), "err", err)
-		}
-
-		scope := s.cfg.Scoped(sys.ID())
-		for _, f := range sys.ConfigSchema() {
-			name := scope.Prefix() + f.Key
-			var val string
-			if f.Kind == system.KindBool {
-				if r.Form.Has(name) {
-					val = "1"
-				} else {
-					val = "0"
-				}
-			} else {
-				val = strings.TrimSpace(r.FormValue(name))
-			}
-			if err := scope.Set(f.Key, val); err != nil {
-				s.log.Error("saving setting", "key", name, "err", err)
-			}
-		}
-	}
-	s.renderSettings(w, true)
-}
-
-func (s *Server) renderSettings(w http.ResponseWriter, saved bool) {
 	var body bytes.Buffer
-	if err := s.tmpl.ExecuteTemplate(&body, "settings", s.settingsData(saved)); err != nil {
+	if err := s.tmpl.ExecuteTemplate(&body, "settings", s.settingsData()); err != nil {
 		s.log.Error("settings render failed", "err", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -303,4 +283,27 @@ func (s *Server) renderSettings(w http.ResponseWriter, saved bool) {
 	d.SettingsActive = true
 	d.Body = template.HTML(body.String())
 	s.render(w, d)
+}
+
+// contextWithTimeout keeps the metrics handler readable.
+func contextWithTimeout(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(r.Context(), d)
+}
+
+// dict builds a map inline so a component can be called with named arguments:
+//
+//	{{template "notice" (dict "Kind" "danger" "Body" .Err)}}
+func dict(pairs ...any) (map[string]any, error) {
+	if len(pairs)%2 != 0 {
+		return nil, fmt.Errorf("dict needs an even number of arguments, got %d", len(pairs))
+	}
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		k, ok := pairs[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict key %d is not a string", i)
+		}
+		m[k] = pairs[i+1]
+	}
+	return m, nil
 }

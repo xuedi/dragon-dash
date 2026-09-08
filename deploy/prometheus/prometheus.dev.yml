@@ -1,11 +1,18 @@
-# Development scrape config, the desktop, not dragon.
+# Development scrape config: the desktop, not dragon.
 global:
   scrape_interval: 15s
 
 scrape_configs:
+  # The desktop's own CPU, memory, filesystems and sensors.
   - job_name: node
     static_configs:
-      - targets: ["node-exporter:9100"]
+      - targets: ["127.0.0.1:9100"]
+
+  # dragon-dash itself, which collects the FRITZ!Box smart home data.
+  - job_name: dragon-dash
+    static_configs:
+      - targets: ["127.0.0.1:8080"]
+
   - job_name: prometheus
     static_configs:
       - targets: ["127.0.0.1:9090"]
