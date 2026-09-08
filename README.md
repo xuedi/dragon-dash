@@ -1,14 +1,16 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.5.1-blue)
+![version](https://img.shields.io/badge/version-0.5.2-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
 metrics, FRITZ!Box smart home, and whatever comes next. Everything is read from
 Prometheus, so every number on screen has history behind it.
 
-Built for [dragon](https://docs.radxa.com/en/dragon/q6a), a Radxa Dragon Q6A
-running Arch Linux ARM, but nothing in it is specific to that board.
+Built for a small always-on ARM home server running Arch Linux ARM, but
+nothing in it is specific to any particular board.
+
+<img src="docs/images/floorplan.png" alt="FritzHome floor plan" width="700">
 
 > **Status: early.** The shell, the settings system and two systems exist and
 > run, and there are packages to install them with. Expect the interfaces to
@@ -17,89 +19,18 @@ running Arch Linux ARM, but nothing in it is specific to that board.
 ## Why it exists
 
 Grafana is the obvious answer and it is a good one, but it is a large dependency
-to run permanently on a 12 W box, it is **not packaged for aarch64** at all (neither in Arch Linux ARM's repos nor the
-AUR), and most of it goes unused when
+to run permanently on a 12 W box, it is **not packaged for aarch64** at all
+(neither in Arch Linux ARM's repos nor the AUR), and most of it goes unused when
 all you want is a handful of charts and a floor plan of your flat.
 
 dragon-dash is the small version of that: one static binary, no database, no
-node toolchain, no runtime dependencies.
-
-## Stack
-
-|                                            |                        |                                                        |
-|--------------------------------------------|------------------------|--------------------------------------------------------|
-| Go, standard library only                  | no external Go modules | the binary is the deployment                           |
-| `html/template` + [htmx](https://htmx.org) | server-rendered        | no build step, no npm                                  |
-| [Bulma](https://bulma.io) 1.0              | CSS only               | no JS framework to age                                 |
-| [uPlot](https://github.com/leeoniya/uPlot) | charts                 | a year at 60s is ~500k points; uPlot is built for that |
-
-Bulma, htmx and uPlot are **committed as files** and embedded with `go:embed`.
+node toolchain, no runtime dependencies. Go with the standard library only,
+server-rendered `html/template` with [htmx](https://htmx.org),
+[Bulma](https://bulma.io) for the CSS and [uPlot](https://github.com/leeoniya/uPlot)
+for the charts, all three committed as files and embedded with `go:embed`.
 There is no `package.json` and never will be.
 
-## Architecture
-
-The shell knows nothing about any individual system. It asks each one what it is
-called, what belongs in its sidebar, and what settings it needs, all as data,
-and renders the result:
-
-```go
-type System interface {
-ID() string    // "dragon"
-Title() string // navbar label
-Nav() []NavItem // left sidebar, as data
-ConfigSchema() []ConfigField // settings page generates itself from this
-Render(slug string, r *http.Request) (template.HTML, error)
-Register(mux *http.ServeMux, prefix string, deps Deps)
-}
-```
-
-Systems are **compiled in** and register themselves in `init()`. Whether one
-appears is a config decision, not a build one, the settings page has a switch
-per system.
-
-There is deliberately no runtime plugin loading. Go's `plugin` package cannot
-cross-compile and demands an identical toolchain and identical dependency
-versions, which would cost exactly the single-binary property that makes this
-thing pleasant to deploy. If out-of-process plugins ever earn their keep, the
-interface above is the seam they would go through.
-
-### Adding a system
-
-1. Create `internal/systems/<name>/`, implement `system.System`, call
-   `system.Register` from `init()`.
-2. Blank-import it in `cmd/dragon-dash/main.go`.
-
-There is no third step. Navigation, routing and the settings form follow.
-
-## Running it
-
-```bash
-just run          # http://127.0.0.1:9494
-just run-lan      # reachable from other machines
-just check        # gofmt, vet, tests
-```
-
-Then open **Settings** and set the Prometheus URL. Until you do, every page
-politely says so rather than showing zeroes.
-
-For real data while developing, run Prometheus and node_exporter on the desktop:
-
-```bash
-just dev-up       # prometheus on :9090, node_exporter on :9100
-```
-
-and point Settings at `http://127.0.0.1:9090`.
-
-### Configuration
-
-Env files and the environment, nothing else: `.env.dist` for committed defaults,
-`.env.local` for credentials, real environment variables winning over both. It is
-**read-only at runtime**, which is the point. With no write path there is no
-settings form to protect, and that is what makes a LAN tool without
-authentication defensible. Details in
-[`docs/configuration.md`](docs/configuration.md).
-
-## The systems
+## What it shows
 
 ### Dragon
 
@@ -112,19 +43,14 @@ per metric with ranges from one hour to one year.
 FRITZ!Box smart home data: smart plug power and energy, room temperatures,
 humidity, thermostat setpoints and battery levels.
 
-dragon-dash talks to the box itself over AVM's documented interfaces
-(`login_sid.lua` with the PBKDF2 challenge, then the AHA-HTTP-Interface), so
-there is no separate exporter to run and the credentials live in one place. The
-page shows the live reading; the same reading is published at `/metrics` for
+dragon-dash talks to the box itself over AVM's documented interfaces, so there
+is no separate exporter to run and the credentials live in one place. The page
+shows the live reading; the same reading is published at `/metrics` for
 Prometheus to keep as history.
 
-Includes a **floor plan**: the outer wall, rooms, interior walls and doors as
-SVG geometry, with devices placed by AIN and showing their live reading. It is
-a JSON file (`DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE`), so redrawing the flat does
-not mean recompiling.
-
-Background on why Prometheus rather than InfluxDB, storage sizing, and the
-exporters that were evaluated and rejected: [`docs/fritzbox-metrics.md`](docs/fritzbox-metrics.md).
+The floor plan above is the outer wall, rooms, interior walls and doors as SVG
+geometry, with devices placed by AIN and showing their live reading. It comes
+from a JSON file, so redrawing the flat does not mean recompiling.
 
 ## Installing
 
@@ -144,22 +70,44 @@ at all, because the app never writes: configuration is read-only and the history
 lives in Prometheus. `CAP_NET_BIND_SERVICE` is granted so `DD_CORE_ADDR=:80`
 works without root.
 
-Building from source instead is `just build-arm`, a static arm64 binary with no
-cgo, so the target needs no toolchain. `deploy/` also holds a Compose stack for
-hosts where containers are preferred.
-
 dragon-dash stores nothing itself, so a full deployment is three services:
 node_exporter and dragon-dash's own `/metrics` are scraped by Prometheus, and
 dragon-dash queries Prometheus back to draw the pages. Both exporters are
-packaged for aarch64, so none of it needs containers. See
+packaged for aarch64, so none of it needs containers. `deploy/` also holds a
+Compose stack for hosts where containers are preferred. Details in
 [`docs/deployment.md`](docs/deployment.md).
 
-## Releases
+## Configuring it
 
-`internal/version/version.go` is the source of truth, mirrored by the badge above
-and by the git tag. `just release X.Y.Z` checks all three agree on a clean `main`,
-then tags and pushes; GoReleaser builds and publishes the rest from CI. A running
-binary identifies itself with `dragon-dash -version` and in the sidebar.
+Env files and the environment, nothing else: `.env.dist` for committed defaults,
+`.env.local` for credentials, real environment variables winning over both. The
+packaged unit reads `/etc/dragon-dash/dragon-dash.env` instead.
+
+```ini
+DD_CORE_ADDR=127.0.0.1:9494
+DD_CORE_PROMETHEUS_URL=http://127.0.0.1:9090
+DD_SYSTEM_FRITZHOME_URL=http://fritz.box
+```
+
+Configuration is **read-only at runtime**, which is the point. The Settings page
+shows what is set and where each value came from, but nothing writes it back.
+With no write path there is no form to protect, and that is what makes a LAN
+tool without authentication defensible. Full key list in
+[`docs/configuration.md`](docs/configuration.md).
+
+## Building and running from source
+
+```bash
+just run          # http://127.0.0.1:9494
+just run-lan      # reachable from other machines
+just build-arm    # static arm64 binary, no cgo, target needs no toolchain
+just check        # gofmt, vet, tests
+```
+
+Until `DD_CORE_PROMETHEUS_URL` points somewhere real, every page politely says
+so rather than showing zeroes. For real data while developing, run Prometheus
+and node_exporter on the desktop with `just dev-up` (prometheus on `:9090`,
+node_exporter on `:9100`).
 
 ## Security
 
@@ -173,5 +121,6 @@ port-forwarded or exposed to the internet.
 
 ## Contributing
 
-Run `just check` before anything else: gofmt, vet, tests. The version constant in
-`internal/version/version.go` and the badge above move together in the same commit.
+Run `just check` first: gofmt, vet, tests. How the thing is put together, the
+system interface, the config layers, the Prometheus client and the frontend, is
+written up in [`docs/`](docs/README.md).

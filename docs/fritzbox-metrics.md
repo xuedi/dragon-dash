@@ -1,7 +1,7 @@
 # dragon-dash, long-term FRITZ!Box smart home metrics
 
 **Status: stack written, nothing deployed.** Researched and scaffolded 2026-09-08.
-Docker is **not yet installed on dragon**.
+Docker is **not yet installed on the server**.
 
 ## The goal
 
@@ -100,7 +100,7 @@ GET /api/v1/query_range?query=<promql>&start=<ts>&end=<ts>&step=<s>
 ```
 
 **The one non-obvious problem, already solved in this stack:** a static page served on `:8080`
-fetching `http://dragon:9090/api/...` is a *cross-origin* request, and Prometheus sends no CORS
+fetching `http://<host>:9090/api/...` is a *cross-origin* request, and Prometheus sends no CORS
 headers, the browser silently blocks it. This trips people up constantly. `dashboard/nginx.conf`
 therefore serves your files at `/` **and** reverse-proxies Prometheus at `/api/`, so everything is
 same-origin and the JS is simply:
@@ -123,15 +123,14 @@ components, one of which is a deployment artefact rather than a package.
 At that point Docker earns its keep:
 
 - The dashboard needs a web server and a defined document root anyway. `nginx.conf` in this repo is
-  reproducible; an nginx installed and hand-configured on dragon is not.
+  reproducible; an nginx installed and hand-configured on the host is not.
 - The nginx-proxies-Prometheus arrangement above needs the two to share a network namespace with a
   stable name. Compose gives that for free; natively it means more config.
-- It matches the workflow already in use on `wenlong:/var/docker/`, same compose shape, same
-  `.env`, same instincts.
+- It matches the compose workflow already in use elsewhere on the network, same compose shape,
+  same `.env`, same instincts.
 
-The overhead concern is real but small on this box: `dockerd` + `containerd` costs roughly
-100-200 MB of dragon's 12 GB, on a CPU [idle 96-97 % of the time](../../docs/system.md#power-management).
-Under 2 % of memory.
+The overhead concern is real but small: `dockerd` + `containerd` cost roughly 100-200 MB of RAM
+and almost nothing on a CPU that is idle most of the time.
 
 **Cost to be honest about:** installing Docker adds ~120 MB (`extra/docker`) plus
 `docker-compose`, a daemon running as root, and a second update mechanism (image tags) alongside
@@ -142,13 +141,13 @@ Both images publish `linux/arm64`, verified 2026-09-08 against Docker Hub.
 
 ## Deploying it
 
-Nothing below has been run. Docker is not installed on dragon yet.
+Nothing below has been run. Docker is not installed on the server yet.
 
 ```bash
-# on dragon, once:
+# on the server, once:
 paru -S docker docker-compose
 sudo systemctl enable --now docker
-sudo usermod -aG docker xuedi      # log out and back in
+sudo usermod -aG docker <user>     # log out and back in
 
 # copy this directory to dragon:/var/docker/dragon-dash/, then:
 cp .env.example .env && $EDITOR .env      # FRITZ!Box user + password
@@ -163,12 +162,12 @@ docker compose up -d
 | prometheus | `127.0.0.1:9090` | admin API is enabled; keep it off the LAN |
 | fritz-exporter | container network only | nothing outside needs it |
 
-Prometheus UI from the desktop: `ssh -N -L 9090:127.0.0.1:9090 dragon`.
+Prometheus UI from the desktop: `ssh -N -L 9090:127.0.0.1:9090 <host>`.
 
 **Backup:** do not copy `data/prometheus` while it runs. Use the admin snapshot API
 (`POST /api/v1/admin/tsdb/snapshot`), which is why `--web.enable-admin-api` is set, then archive the
-snapshot directory. Once `/var/data` exists, backups belong there, never inside the stack, matching
-the wenlong convention.
+snapshot directory. Once a dedicated data volume exists, backups belong there, never inside the
+stack.
 
 ## Open questions before building
 
@@ -176,9 +175,8 @@ the wenlong convention.
 - **Which smart home devices?** DECT 200/210 plugs, DECT 301/Comet thermostats, DECT 440 sensors.
   This decides which metrics are actually populated.
 - **Scrape interval.** 60 s is ample for power and temperature; the storage maths above assumes it.
-- **Where does the data live?** `/var/data` is the natural home, but it does not exist yet, see
-  *External USB drive* in [`../../docs/system.md`](../../docs/system.md). Until that drive is working,
-  Prometheus would have to store on the 238 GB boot NVMe, which is fine for the volumes involved.
+- **Where does the data live?** A dedicated data volume is the natural home. Until one exists,
+  Prometheus stores on the boot disk, which is fine for the volumes involved.
 - **A FRITZ!Box user with the right permissions**, and where its credentials are stored.
 
 ## Reference
