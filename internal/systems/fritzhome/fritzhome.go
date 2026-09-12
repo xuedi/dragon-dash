@@ -26,8 +26,6 @@ import (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-func init() { system.Register(&FritzHome{}) }
-
 const defaultInterval = 60 * time.Second
 
 type FritzHome struct {

@@ -20,13 +20,23 @@ import (
 
 	"armdash/internal/config"
 	"armdash/internal/server"
+	"armdash/internal/system"
+	"armdash/internal/systems/fritzhome"
+	"armdash/internal/systems/host"
 	"armdash/internal/version"
-
-	// Systems are compiled in and register themselves. Whether they appear is
-	// a config decision, not a build one, see internal/system.
-	_ "armdash/internal/systems/fritzhome"
-	_ "armdash/internal/systems/host"
 )
+
+// systems are every compiled-in system, in navbar order. Whether each appears
+// is a config decision, see internal/system. The order is written here rather
+// than left to each package's own init, which Go runs in an order the source
+// does not show.
+var systems = []system.System{&host.Host{}, &fritzhome.FritzHome{}}
+
+func init() {
+	for _, s := range systems {
+		system.Register(s)
+	}
+}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "passwd" {

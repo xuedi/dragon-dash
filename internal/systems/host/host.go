@@ -23,8 +23,6 @@ import (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-func init() { system.Register(&Host{}) }
-
 // charts are the graphable metrics. Adding a graph is adding an entry here.
 //
 // Thermals is the multi query case: one hottest-of-everything line cannot say

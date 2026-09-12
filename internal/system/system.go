@@ -1,8 +1,8 @@
 // Package system defines the contract every armdash feature implements.
 //
 // A "system" is one top-navbar entry, Host, FritzHome, and whatever comes
-// later. Systems are compiled into the binary and register themselves at init
-// time; the config decides which ones are shown. There is no runtime plugin
+// later. Systems are compiled into the binary and the command registers them
+// at startup, in navbar order; the config decides which ones are shown. There is no runtime plugin
 // loading, deliberately: Go's plugin package cannot cross-compile and would
 // cost us the single-binary property, which is the whole point.
 //
@@ -109,7 +109,8 @@ func CanEdit(r *http.Request) bool {
 
 var registry []System
 
-// Register adds a system. Call it from an init function.
+// Register adds a system. The navbar lists systems in the order they were
+// registered.
 func Register(s System) { registry = append(registry, s) }
 
 // All returns every compiled-in system, in registration order.

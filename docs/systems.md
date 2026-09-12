@@ -47,11 +47,17 @@ whenever it reads better without breaking either.
 
 ## Registration
 
-Systems register themselves from `init()` and are blank-imported in `cmd/armdash/main.go`:
+`cmd/armdash/main.go` lists every compiled-in system, in navbar order, and registers them before
+the server starts:
 
 ```go
-func init() { system.Register(&Host{}) }
+var systems = []system.System{&host.Host{}, &fritzhome.FritzHome{}}
 ```
+
+The list is explicit on purpose. Systems used to register themselves from their own `init()`, and
+Go runs package init functions in an order it derives from import paths and dependencies, not from
+anything written in the source: a new shared import once moved FritzHome ahead of Host. The navbar
+order, and with it the default page, is now simply what the list says.
 
 Everything compiled in is *available*; the config decides what is *shown*. A disabled system
 disappears from the navbar and its routes return 404. See [configuration.md](configuration.md).
@@ -89,7 +95,7 @@ down rather than simply showing a gap.
 
 ## Adding one
 
-1. Create `internal/systems/<name>/`, implement the interface, call `system.Register` in `init()`.
-2. Blank-import the package in `cmd/armdash/main.go`.
+1. Create `internal/systems/<name>/` and implement the interface.
+2. Add it to the list in `cmd/armdash/main.go`, at the place it should take in the navbar.
 
 There is no third step.
