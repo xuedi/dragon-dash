@@ -1,0 +1,30 @@
+# A complete Prometheus configuration for armdash and Prometheus on the same
+# host, installed as /usr/share/armdash/prometheus.yml.example. Copy it over the
+# one your distribution ships, /etc/prometheus/prometheus.yml, or add the node
+# and armdash jobs to that file, then restart Prometheus. See docs/install.md.
+#
+# Keeping years of history is a command-line flag, not part of this file:
+# --storage.tsdb.retention.time=10y, the default is 15 days.
+
+global:
+  # How often armdash polls the FRITZ!Box. Scraping faster stores the same
+  # reading several times.
+  scrape_interval: 60s
+  scrape_timeout: 30s
+
+scrape_configs:
+  # CPU, memory, filesystems and temperatures, for the Host pages.
+  - job_name: node
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+
+  # The FRITZ!Box readings armdash publishes at /metrics, for the FritzHome
+  # charts. The port is the one in AD_CORE_ADDR, 127.0.0.1:80 for :80. It stays
+  # plain HTTP with HTTPS on, /metrics is never redirected.
+  - job_name: armdash
+    static_configs:
+      - targets: ["127.0.0.1:9494"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]

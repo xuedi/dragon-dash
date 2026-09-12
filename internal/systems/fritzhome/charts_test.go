@@ -123,7 +123,7 @@ func TestChartPageNeedsPrometheus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`id="dd-chart"`, `range?metric=power`, "fritz_power_watts", "Total"} {
+	for _, want := range []string{`id="armdash-chart"`, `range?metric=power`, "fritz_power_watts", "Total"} {
 		if !strings.Contains(string(h), want) {
 			t.Errorf("chart page is missing %s", want)
 		}

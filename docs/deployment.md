@@ -1,7 +1,7 @@
 # Releases and deployment
 
 How a commit becomes a numbered release, and how that release ends up serving a dashboard on a
-home server.
+home server. The step-by-step install is [install.md](install.md).
 
 ## Versioning
 
@@ -57,7 +57,7 @@ the way to check a packaging change before tagging. It needs `goreleaser` on `PA
 
 | Artifact | For |
 |---|---|
-| `armdash_<version>_<os>_<arch>.tar.gz` | the binary, README, licence, `.env.dist`, the unit file |
+| `armdash_<version>_<os>_<arch>.tar.gz` | the binary, README, licence, `.env.dist`, the unit file, the example Prometheus config |
 | `armdash_<version>_linux_<arch>.pkg.tar.zst` | Arch and Arch ARM |
 | `armdash_<version>_linux_<arch>.deb` / `.rpm` | Debian, Ubuntu, Raspberry Pi OS, Fedora |
 | `checksums.txt` | verifying any of the above |
@@ -76,22 +76,36 @@ runs the same, under whatever supervises services there.
 ## What the packages install
 
 ```
-/usr/bin/armdash                          the binary
-/usr/lib/systemd/system/armdash.service   the unit, shipped disabled
-/usr/share/armdash/armdash.env.example    the seed configuration
-/etc/armdash/armdash.env                  0640 root:armdash, seeded on first install
-/var/lib/armdash/                         0700 armdash, created by systemd on start
+/usr/bin/armdash                            the binary
+/usr/lib/systemd/system/armdash.service     the unit, shipped disabled
+/usr/share/armdash/armdash.env.example      the seed configuration
+/usr/share/armdash/prometheus.yml.example   scrape jobs for a Prometheus on the same host
+/etc/armdash/armdash.env                    0640 root:armdash, seeded on first install
+/var/lib/armdash/                           0700 armdash, created by systemd on start
 ```
+
+The packages bring Prometheus and node_exporter along. On Debian and Fedora they are
+*recommends*, which apt and dnf install by default and which someone with Prometheus on another
+host can decline. The Arch format has no weak dependency, so there they are hard dependencies.
 
 The post-install creates the `armdash` system user, seeds the configuration only when there is
 not one already (an upgrade must never drop credentials) and leaves the unit disabled, because a
-dashboard with no FRITZ!Box credentials and no Prometheus address is not worth starting. Its next
-steps include `armdash passwd`, which prints the owner login for the env file, see
-[authentication.md](authentication.md). Without it the dashboard runs, but nothing can be changed.
+dashboard with no FRITZ!Box credentials and no Prometheus address is not worth starting. It then
+prints the steps still missing, among them `armdash passwd`, which prints the owner login for the
+env file, see [authentication.md](authentication.md). Without it the dashboard runs, but nothing
+can be changed.
+
+To know which Prometheus steps are missing, the post-install reads the local setup: whether a
+scrape job covers armdash's port and node_exporter, whether a retention is set, whether the
+services are enabled. It changes none of it. That configuration belongs to the Prometheus package,
+an edit there would turn into a conflict on its next upgrade, and ten years of retention is a
+decision about disk space.
+
+An upgrade restarts a running armdash on the new binary and leaves a stopped one stopped.
 
 `just install` does the same from a checkout on the machine itself: it builds, installs the binary
 to `/usr/local/bin`, creates the user, seeds the env file when there is none and installs the unit
-with its `ExecStart` pointed there, disabled. It needs sudo.
+with its `ExecStart` pointed there, disabled. It needs sudo, and it installs no Prometheus.
 
 The unit is hardened further than most, and can be, because **the app writes almost nothing**.
 Configuration is read-only by design and every metric lives in Prometheus. The one writable path is
@@ -160,19 +174,19 @@ three services:
 ```mermaid
 flowchart LR
     NE[node-exporter :9100] -->|scrape| P[(Prometheus :9090)]
-    DD[armdash /metrics] -->|scrape| P
-    FB[FRITZ!Box AHA API] -->|poll| DD
-    P -->|query| DD2[armdash pages :80 / :443]
+    AD[armdash /metrics] -->|scrape| P
+    FB[FRITZ!Box AHA API] -->|poll| AD
+    P -->|query| AD2[armdash pages :80 / :443]
 ```
 
 armdash appears twice on purpose. It polls the FRITZ!Box and republishes what it finds on
 `/metrics` for Prometheus to scrape, and it queries Prometheus to draw the pages. That is why the
 FRITZ!Box credentials exist in exactly one place and there is no separate exporter to keep alive.
 
-Prometheus and node_exporter are packaged by the major distributions on ARM and x86 alike (on
-Arch `extra/prometheus` and `extra/prometheus-node-exporter`), so a native install needs no
-containers. `deploy/` also holds a
-compose file for hosts where containers are preferred.
+The packages pull Prometheus and node_exporter in, so a native install needs no containers.
+[install.md](install.md) goes through the Prometheus side per distribution: the two scrape jobs,
+the retention and where each distribution keeps them. `deploy/` also holds a compose file for hosts
+where containers are preferred.
 
 Two Prometheus flags matter:
 
@@ -196,32 +210,3 @@ A decade fits in under 20 GB. Any modern root filesystem holds that, so the TSDB
 dedicated data disk, and putting it on one is a preference rather than a requirement. A bigger host
 reports more series (a desktop's node_exporter alone reports about 1100), but the order of magnitude
 does not change.
-
-## Renamed from dragon-dash
-
-Up to 0.11.0 the project was called dragon-dash. 0.12.0 renamed everything that carried the old
-name:
-
-| Up to 0.11.0 | From 0.12.0 |
-|---|---|
-| package, binary, unit, system user `dragon-dash` | `armdash` |
-| `/etc/dragon-dash/dragon-dash.env` | `/etc/armdash/armdash.env` |
-| `/etc/dragon-dash/tls/dragon-dash.crt` and `.key` | `/etc/armdash/tls/armdash.crt` and `.key` |
-| `/var/lib/dragon-dash/` | `/var/lib/armdash/` |
-| every `DD_` setting | the same name with `AD_` |
-| `DD_SYSTEM_DRAGON_*`, pages under `/s/dragon/` | `AD_SYSTEM_HOST_*`, pages under `/s/host/` |
-| metric `dragon_dash_collector_up` | `armdash_collector_up` |
-
-The armdash packages replace and conflict with dragon-dash, so installing one removes the other.
-Nothing is migrated automatically and the old `DD_` names are not read any more, so an existing
-install moves once, by hand:
-
-1. Stop and disable `dragon-dash`.
-2. Copy the env file to `/etc/armdash/armdash.env` **before** installing, so the post-install keeps
-   it rather than seeding a fresh one. Rename every key from `DD_` to `AD_`, `DD_SYSTEM_DRAGON_` to
-   `AD_SYSTEM_HOST_`, and point the TLS paths at their new place.
-3. Move the certificate and key to `/etc/armdash/tls/`, and `/var/lib/dragon-dash` to
-   `/var/lib/armdash`. systemd hands the state directory to the new user on the first start.
-4. Install the package and `systemctl enable --now armdash`.
-5. Update whatever refers to the old names on the Prometheus side (a scrape job named after the
-   service, a query on the collector metric), then remove the `dragon-dash` user and group.

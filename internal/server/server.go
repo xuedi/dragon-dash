@@ -36,7 +36,7 @@ const (
 // a dark page has already painted white and waits for a script to correct it.
 // localStorage is invisible to the server and would need a blocking script in
 // the head to avoid exactly that flash.
-const themeCookie = "dd_theme"
+const themeCookie = "armdash_theme"
 
 // theme returns "light", "dark", or "" to follow the browser.
 //

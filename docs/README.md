@@ -13,4 +13,5 @@ says, read the relevant one before working in that area.
 | [fritzbox-metrics.md](fritzbox-metrics.md) | Which FRITZ!Box exporter and why, storage sizing, rejected alternatives |
 | [floorplan.md](floorplan.md) | The floor plan: SweetHome3D and JSON formats, uploading, placing devices, who can change it |
 | [authentication.md](authentication.md) | The owner login: what it guards, the password hash, sessions, the limit on guessing |
+| [install.md](install.md) | Installing step by step: the package, the login, Prometheus' scrape jobs and retention per distribution |
 | [deployment.md](deployment.md) | Versioning, automatic releases, what the packages install, the Prometheus side |

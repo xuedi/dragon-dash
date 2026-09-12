@@ -63,7 +63,9 @@ install: build
     echo "installed; the unit is disabled. to finish:"
     echo "  1. sudoedit $conf     address, Prometheus, FRITZ!Box"
     echo "  2. $bin passwd        and add the two lines it prints to $conf"
-    echo "  3. sudo systemctl enable --now {{app}}"
+    echo "  3. Prometheus and node_exporter from the distribution, scraping node_exporter"
+    echo "     and armdash, see packaging/prometheus/prometheus.yml and docs/install.md"
+    echo "  4. sudo systemctl enable --now {{app}}"
 
 # Local dry run of the whole packaging pipeline: builds the binary and every
 # distro package into ./dist without publishing (needs goreleaser on PATH).

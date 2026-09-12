@@ -146,8 +146,8 @@ func (s *Set) Page(c Chart, unconfigured bool) Page {
 	}
 
 	top := system.PageTop{Title: c.Title}
-	top.Actionf(`<span id="dd-status" class="tag is-light">loading</span>`)
-	top.Actionf(`<div class="select is-small"><select id="dd-range" onchange="ddLoad()">%s</select></div>`, opts.String())
+	top.Actionf(`<span id="armdash-status" class="tag is-light">loading</span>`)
+	top.Actionf(`<div class="select is-small"><select id="armdash-range" onchange="armdashLoad()">%s</select></div>`, opts.String())
 	return Page{
 		Top:          top,
 		URL:          s.api + "range?metric=" + url.QueryEscape(c.Slug),

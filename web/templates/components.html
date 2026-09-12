@@ -60,7 +60,7 @@
   {{template "notice" (dict "Kind" "warning" "Title" "Prometheus is not configured"
       "Body" "Set AD_CORE_PROMETHEUS_URL to draw this chart.")}}
 {{else}}
-  <div class="box"><div id="dd-chart"></div></div>
+  <div class="box"><div id="armdash-chart"></div></div>
 
   {{/* overflow-wrap is inline because no Bulma helper sets it, and one long
        selector would otherwise widen the page on a phone. */}}
@@ -73,17 +73,17 @@
   <script>
   // uPlot rather than Chart.js: a year at 60s resolution is ~525k points, and
   // uPlot is built for that. Chart.js would crawl.
-  const ddURL = {{.URL}};
-  const ddEl = document.getElementById('dd-chart');
-  const ddHeight = 340;
-  let ddChart = null;
-  let ddWidth = 0;
-  let ddData = null;
+  const armdashURL = {{.URL}};
+  const armdashEl = document.getElementById('armdash-chart');
+  const armdashHeight = 340;
+  let armdashChart = null;
+  let armdashWidth = 0;
+  let armdashData = null;
 
   // uPlot paints onto a canvas, so it cannot inherit the palette the way the
   // rest of the page does. Reading Bulma's own variables keeps the axes legible
   // in both schemes instead of drawing near-black text on a dark page.
-  function ddTheme() {
+  function armdashTheme() {
     const cs = getComputedStyle(document.documentElement);
     const get = (n, fallback) => cs.getPropertyValue(n).trim() || fallback;
     return {
@@ -94,15 +94,15 @@
 
   // Nine entries because the Thermals chart draws nine lines: the hottest
   // zone, six named board zones and the two SSDs.
-  const ddPalette = [
+  const armdashPalette = [
     '#485fc7','#00d1b2','#f14668','#ffb238','#3e8ed0',
     '#48c78e','#9b5de5','#ff7043','#8a8a8a',
   ];
 
-  function ddLine(s, i, points) {
+  function armdashLine(s, i, points) {
     return {
       label: s.name,
-      stroke: ddPalette[i % ddPalette.length],
+      stroke: armdashPalette[i % armdashPalette.length],
       width: 1.5,
       // A fresh Prometheus has only a handful of samples; without markers a
       // one-point series draws nothing at all.
@@ -113,8 +113,8 @@
   // The bars of one bucket stand side by side rather than stacked: one line
   // may already contain another, as a house meter contains every plug behind
   // it. Together they fill the middle 80% of the bucket.
-  function ddBar(s, i, n, bucket) {
-    const colour = ddPalette[i % ddPalette.length];
+  function armdashBar(s, i, n, bucket) {
+    const colour = armdashPalette[i % armdashPalette.length];
     const w = 0.8 / n;
     return {
       label: s.name, stroke: colour, fill: colour, width: 0,
@@ -129,15 +129,15 @@
   // A bar's x value is the middle of its bucket, so the cursor, which snaps to
   // the nearest one, picks the bucket under it. The legend names the bucket by
   // its start.
-  function ddTime(bucket) {
+  function armdashTime(bucket) {
     if (!bucket) return {};
     const fmt = uPlot.fmtDate(bucket < 86400 ? '{YYYY}-{MM}-{DD} {HH}:{mm}' : '{YYYY}-{MM}-{DD}');
     return { value: (u, v) => v == null ? '' : fmt(new Date((v - bucket / 2) * 1000)) };
   }
 
-  function ddDraw(d) {
-    ddData = d;
-    const theme = ddTheme();
+  function armdashDraw(d) {
+    armdashData = d;
+    const theme = armdashTheme();
     const axis = {
       stroke: theme.axis,
       grid: { stroke: theme.grid, width: 1 },
@@ -146,10 +146,10 @@
     const bucket = d.bucket || 0;
     const xs = bucket ? d.time.map(t => t + bucket / 2) : d.time;
     const data = [xs, ...d.series.map(s => s.data)];
-    if (ddChart) { ddChart.destroy(); }
-    ddWidth = ddEl.clientWidth || 900;
-    ddChart = new uPlot({
-      width: ddWidth, height: ddHeight,
+    if (armdashChart) { armdashChart.destroy(); }
+    armdashWidth = armdashEl.clientWidth || 900;
+    armdashChart = new uPlot({
+      width: armdashWidth, height: armdashHeight,
       scales: {
         // From the data rather than uPlot's own min and max: with a single
         // bar, uPlot has already widened those to about three years.
@@ -171,25 +171,25 @@
           return [min - pad, max + pad];
         } },
       },
-      series: [ddTime(bucket), ...d.series.map((s, i) => bucket
-        ? ddBar(s, i, d.series.length, bucket)
-        : ddLine(s, i, d.time.length))],
+      series: [armdashTime(bucket), ...d.series.map((s, i) => bucket
+        ? armdashBar(s, i, d.series.length, bucket)
+        : armdashLine(s, i, d.time.length))],
       axes: [{ ...axis }, { ...axis, label: d.unit || '' }],
-    }, data, ddEl);
+    }, data, armdashEl);
   }
 
-  function ddLoad() {
-    const secs = document.getElementById('dd-range').value;
-    const status = document.getElementById('dd-status');
+  function armdashLoad() {
+    const secs = document.getElementById('armdash-range').value;
+    const status = document.getElementById('armdash-status');
     status.className = 'tag is-light'; status.textContent = 'loading';
-    fetch(ddURL + '&window=' + secs)
+    fetch(armdashURL + '&window=' + secs)
       .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t))))
       .then(d => {
         if (!d.time || d.time.length === 0) {
           status.className = 'tag is-warning'; status.textContent = 'no data';
           return;
         }
-        ddDraw(d);
+        armdashDraw(d);
         const n = d.time.length;
         const what = (d.bucket ? ' bar' : ' point') + (n === 1 ? '' : 's');
         status.className = 'tag is-success is-light';
@@ -208,12 +208,12 @@
   //
   // The width guard matters: resizing the canvas can itself trigger the
   // observer, and without it the two feed each other into a loop.
-  function ddResize() {
-    if (!ddChart) return;
-    const w = ddEl.clientWidth;
-    if (!w || w === ddWidth) return;
-    ddWidth = w;
-    ddChart.setSize({ width: w, height: ddHeight });
+  function armdashResize() {
+    if (!armdashChart) return;
+    const w = armdashEl.clientWidth;
+    if (!w || w === armdashWidth) return;
+    armdashWidth = w;
+    armdashChart.setSize({ width: w, height: armdashHeight });
   }
 
   // Two triggers on purpose. The window event covers the ordinary case and
@@ -221,26 +221,26 @@
   // the column without moving the window, but its callbacks are only delivered
   // while the page is actually rendering, so it is the supplement, not the
   // mechanism.
-  window.addEventListener('resize', ddResize);
+  window.addEventListener('resize', armdashResize);
 
   // Following the browser from light to dark mid-session needs a repaint; the
   // canvas keeps the colours it was drawn with. The navbar toggle fires its own
   // event, and while it is set the browser preference is not what is on screen,
   // so that listener has nothing to repaint for.
-  const ddScheme = window.matchMedia('(prefers-color-scheme: dark)');
-  ddScheme.addEventListener('change', () => {
-    if (ddData && !document.documentElement.dataset.theme) ddDraw(ddData);
+  const armdashScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  armdashScheme.addEventListener('change', () => {
+    if (armdashData && !document.documentElement.dataset.theme) armdashDraw(armdashData);
   });
-  window.addEventListener('dd:theme', () => { if (ddData) ddDraw(ddData); });
+  window.addEventListener('armdash:theme', () => { if (armdashData) armdashDraw(armdashData); });
   if (typeof ResizeObserver !== 'undefined') {
-    const ddObserver = new ResizeObserver(ddResize);
-    ddObserver.observe(ddEl);
+    const armdashObserver = new ResizeObserver(armdashResize);
+    armdashObserver.observe(armdashEl);
     // Keep a reference: an observer with no strong reference may be collected.
-    window.ddObserver = ddObserver;
+    window.armdashObserver = armdashObserver;
   }
 
-  window.addEventListener('DOMContentLoaded', ddLoad);
-  if (document.readyState !== 'loading') ddLoad();
+  window.addEventListener('DOMContentLoaded', armdashLoad);
+  if (document.readyState !== 'loading') armdashLoad();
   </script>
 {{end}}
 {{end}}

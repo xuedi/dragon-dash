@@ -86,7 +86,7 @@ corrects it. The cookie value is whitelisted on the way in: it is client-control
 up in an attribute.
 
 Two things follow the theme by a different route. The charts paint a canvas, which inherits
-nothing, so they read Bulma's variables off the computed root style and repaint on a `dd:theme`
+nothing, so they read Bulma's variables off the computed root style and repaint on a `armdash:theme`
 event that the toggle fires. And while an override is set, the `prefers-color-scheme` listener
 stops repainting, because the browser preference is no longer what is on screen.
 
@@ -144,7 +144,7 @@ page that is not actively painting (an offscreen or background tab) receives non
 it cannot be verified by resizing a headless window. Test it by changing the container width and
 dispatching a `resize` event.
 
-Both go through one `ddResize()` with a **width guard**. Resizing the canvas can itself trigger the
+Both go through one `armdashResize()` with a **width guard**. Resizing the canvas can itself trigger the
 observer, and without the guard the two feed each other into a loop.
 
 

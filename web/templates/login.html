@@ -14,15 +14,15 @@
       <form method="post" action="/login">
         <input type="hidden" name="next" value="{{.Next}}">
         <div class="field">
-          <label class="label" for="dd-user">User name</label>
+          <label class="label" for="armdash-user">User name</label>
           <div class="control">
-            <input class="input" id="dd-user" name="user" value="{{.User}}" autocomplete="username" required{{if not .User}} autofocus{{end}}>
+            <input class="input" id="armdash-user" name="user" value="{{.User}}" autocomplete="username" required{{if not .User}} autofocus{{end}}>
           </div>
         </div>
         <div class="field">
-          <label class="label" for="dd-password">Password</label>
+          <label class="label" for="armdash-password">Password</label>
           <div class="control">
-            <input class="input" type="password" id="dd-password" name="password" autocomplete="current-password" required{{if .User}} autofocus{{end}}>
+            <input class="input" type="password" id="armdash-password" name="password" autocomplete="current-password" required{{if .User}} autofocus{{end}}>
           </div>
         </div>
         <button type="submit" class="button is-link is-fullwidth mt-4">Log in</button>

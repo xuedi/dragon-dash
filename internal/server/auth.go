@@ -20,7 +20,7 @@ import (
 const (
 	authUserKey   = "core.auth_user"
 	authHashKey   = "core.auth_password_hash"
-	sessionCookie = "dd_session"
+	sessionCookie = "armdash_session"
 
 	maxFailures = 10
 	failWindow  = 15 * time.Minute

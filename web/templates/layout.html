@@ -67,7 +67,7 @@
 {{if .Frame}}
 {{/* No Bulma class sizes an element to the viewport minus the navbar, so this
      one element carries its height inline rather than adding a rule. */}}
-<iframe id="dd-frame" src="{{.Frame}}" title="{{.PageTitle}}" class="is-block"
+<iframe id="armdash-frame" src="{{.Frame}}" title="{{.PageTitle}}" class="is-block"
         style="width:100%;height:calc(100dvh - var(--bulma-navbar-height));border:0"></iframe>
 {{if .FrameFrom}}
 <script>
@@ -75,7 +75,7 @@
   // mirrored into the address bar. That is what makes a reload or a bookmark
   // land on the same page rather than on the site's start page.
   (function () {
-    const frame = document.getElementById('dd-frame');
+    const frame = document.getElementById('armdash-frame');
     const from = {{.FrameFrom}}, to = {{.FrameTo}}, title = {{.PageTitle}};
     frame.addEventListener('load', function () {
       let loc, inner;
@@ -128,25 +128,25 @@
   // again under [data-theme], and its attribute rules come last in the
   // stylesheet. Setting the attribute is therefore the entire override; there
   // is no custom CSS behind this.
-  function ddSetTheme(value) {
+  function armdashSetTheme(value) {
     const root = document.documentElement;
     if (value) { root.dataset.theme = value; } else { delete root.dataset.theme; }
 
     // No Secure flag on purpose: the dashboard is plain HTTP on a LAN, and a
     // Secure cookie would simply never be stored. Max-Age 0 deletes it, which
     // is what "follow the browser" means server side.
-    document.cookie = 'dd_theme=' + value + ';path=/;samesite=lax;max-age=' +
+    document.cookie = 'armdash_theme=' + value + ';path=/;samesite=lax;max-age=' +
       (value ? 31536000 : 0);
 
-    for (const b of document.querySelectorAll('[data-dd-theme]')) {
-      const on = b.dataset.ddTheme === value;
+    for (const b of document.querySelectorAll('[data-armdash-theme]')) {
+      const on = b.dataset.armdashTheme === value;
       b.classList.toggle('is-link', on);
       b.classList.toggle('is-selected', on);
     }
 
     // Canvases inherit nothing, so anything painted rather than styled has to
     // be told. The charts listen for this.
-    window.dispatchEvent(new Event('dd:theme'));
+    window.dispatchEvent(new Event('armdash:theme'));
   }
 </script>
 
@@ -156,5 +156,5 @@
 {{/* theme-button expects: .Value ("", "light", "dark") .Label .Theme (current) */}}
 {{define "theme-button"}}
 <button type="button" class="button{{if eq .Value .Theme}} is-link is-selected{{end}}"
-        data-dd-theme="{{.Value}}" onclick="ddSetTheme('{{.Value}}')">{{.Label}}</button>
+        data-armdash-theme="{{.Value}}" onclick="armdashSetTheme('{{.Value}}')">{{.Label}}</button>
 {{end}}

@@ -51,6 +51,7 @@ archives:
       - LICENSE
       - .env.dist
       - packaging/systemd/armdash.service
+      - packaging/prometheus/prometheus.yml
 
 nfpms:
   - id: armdash
@@ -73,19 +74,31 @@ nfpms:
       # credentials.
       - src: .env.dist
         dst: /usr/share/armdash/armdash.env.example
+      # For copying. Nothing edits the configuration Prometheus ships with.
+      - src: packaging/prometheus/prometheus.yml
+        dst: /usr/share/armdash/prometheus.yml.example
     scripts:
       postinstall: packaging/nfpm/postinstall.sh
-    # A dashboard with no Prometheus to read shows empty charts, so name it, but
-    # it may equally well live on another host.
-    recommends:
-      - prometheus
-    # Up to 0.11.0 the project was called dragon-dash. This package takes the
-    # old one's place rather than installing next to it.
-    replaces:
-      - dragon-dash
-    conflicts:
-      - dragon-dash
-
+    archlinux:
+      scripts:
+        postupgrade: packaging/nfpm/postupgrade.sh
+    # A dashboard with no Prometheus to read shows empty charts, so the packages
+    # bring Prometheus and node_exporter. apt and dnf install recommends by
+    # default and let someone with Prometheus on another host skip them. nfpm
+    # writes no recommends for Arch, so there it is a hard dependency or none.
+    overrides:
+      deb:
+        recommends:
+          - prometheus
+          - prometheus-node-exporter
+      rpm:
+        recommends:
+          - prometheus
+          - node-exporter
+      archlinux:
+        dependencies:
+          - prometheus
+          - prometheus-node-exporter
 checksum:
   name_template: "checksums.txt"
 

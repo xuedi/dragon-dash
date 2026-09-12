@@ -1,6 +1,6 @@
 # armdash
 
-![version](https://img.shields.io/badge/version-0.13.1-blue)
+![version](https://img.shields.io/badge/version-0.13.2-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -86,13 +86,14 @@ built from the same commit. The full list is in
 [`docs/deployment.md`](docs/deployment.md#what-a-release-contains).
 
 ```bash
-sudo pacman -U armdash_*_linux_arm64.pkg.tar.zst   # or dpkg -i / rpm -i
+sudo pacman -U armdash_*_linux_arm64.pkg.tar.zst   # or apt / dnf install ./armdash_*
 armdash passwd                                     # prints the login lines
 sudoedit /etc/armdash/armdash.env                  # address, Prometheus, FRITZ!Box, login
 sudo systemctl enable --now armdash
 ```
 
-`just install` does the same from a checkout of this repository.
+`just install` does the same from a checkout of this repository, without the
+dependencies.
 
 The package installs a hardened systemd unit that runs as a dedicated
 unprivileged user with the filesystem read-only except for one directory,
@@ -102,11 +103,13 @@ positions. Configuration is read-only and the history lives in Prometheus.
 
 armdash keeps no history itself, so a full deployment is three services:
 node_exporter and armdash's own `/metrics` are scraped by Prometheus, and
-armdash queries Prometheus back to draw the pages. Both exporters are
-packaged by the major distributions on ARM and x86 alike, so none of it needs
-containers. `deploy/` also holds a
-Compose stack for hosts where containers are preferred. Details in
-[`docs/deployment.md`](docs/deployment.md).
+armdash queries Prometheus back to draw the pages. The packages bring
+Prometheus and node_exporter along. Prometheus then needs a scrape job for
+each and a longer retention than its default 15 days: the post-install looks
+at the local setup and names what is still missing, and
+`/usr/share/armdash/prometheus.yml.example` has the jobs. Step by step, for
+Arch, Debian and Fedora, in [`docs/install.md`](docs/install.md). `deploy/`
+also holds a Compose stack for hosts where containers are preferred.
 
 ## Configuring it
 

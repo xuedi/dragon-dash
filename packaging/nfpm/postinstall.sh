@@ -1,13 +1,27 @@
 #!/bin/sh
-# Runs after the package is installed on deb/rpm/Arch. It creates the dedicated
-# system user, seeds the configuration file if there is not one already, and
-# prints the next steps. The unit ships disabled: credentials go in first, the
-# operator enables the service afterwards.
+# Runs after the package is installed on deb/rpm/Arch, and after an upgrade on
+# deb/rpm (Arch runs postupgrade.sh). A first install creates the dedicated
+# system user, seeds the configuration file if there is not one already and
+# prints the steps still missing. It reads the local Prometheus setup to know
+# which, but never changes it, that configuration belongs to another package.
+# The unit ships disabled: credentials go in first, the operator enables the
+# service afterwards. An upgrade restarts a running service on the new binary.
 set -e
 
 CONF_DIR=/etc/armdash
 CONF=$CONF_DIR/armdash.env
 TEMPLATE=/usr/share/armdash/armdash.env.example
+EXAMPLE=/usr/share/armdash/prometheus.yml.example
+PROM_CONF=/etc/prometheus/prometheus.yml
+DOCS=https://github.com/xuedi/armdash/blob/main/docs/install.md
+
+# deb passes "configure <previous version>", rpm the number of installed
+# copies, which is 2 during an upgrade.
+upgrade=
+case "${1:-}" in
+configure) if [ -n "${2:-}" ]; then upgrade=1; fi ;;
+[2-9]) upgrade=1 ;;
+esac
 
 nologin_shell=/usr/sbin/nologin
 [ -x "$nologin_shell" ] || nologin_shell=/sbin/nologin
@@ -38,25 +52,122 @@ if [ -f "$CONF" ]; then
 	chown root:armdash "$CONF" 2>/dev/null || true
 fi
 
-command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1 || true
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	if [ -n "$upgrade" ]; then
+		systemctl try-restart armdash >/dev/null 2>&1 || true
+	fi
+fi
+if [ -n "$upgrade" ]; then
+	exit 0
+fi
+
+conf() {
+	sed -n "s/^[[:space:]]*$1=//p" "$CONF" 2>/dev/null | tail -n 1 | tr -d "\"' "
+}
+
+# A symlink is an alias, Fedora ships node_exporter under two names, and
+# systemctl refuses to enable a unit by its alias.
+unit_file() {
+	for d in /etc/systemd/system /usr/lib/systemd/system /lib/systemd/system; do
+		if [ -f "$d/$1.service" ] && [ ! -L "$d/$1.service" ]; then return 0; fi
+	done
+	return 1
+}
+
+# A comment in the Prometheus files must not count as the setting.
+active() {
+	grep -v '^[[:space:]]*#' "$1" 2>/dev/null | grep -Eq "$2"
+}
+
+n=0
+step() {
+	n=$((n + 1))
+	printf '\n  %d. %s\n' "$n" "$1"
+	shift
+	for line in "$@"; do
+		printf '       %s\n' "$line"
+	done
+}
+
+addr=$(conf AD_CORE_ADDR)
+port=${addr##*:}
+[ -n "$port" ] || port=9494
+prom_url=$(conf AD_CORE_PROMETHEUS_URL)
+
+echo
+echo "armdash is installed. The systemd unit is present but disabled. To finish:"
+
+step "sudoedit $CONF" \
+	"AD_CORE_ADDR           where to listen, :80 for the default HTTP port" \
+	"AD_CORE_TLS_*          certificate, key and :443 to serve HTTPS as well" \
+	"AD_CORE_PROMETHEUS_URL where the metrics are read from" \
+	"AD_SYSTEM_FRITZHOME_*  FRITZ!Box host and credentials"
+
+if [ -z "$(conf AD_CORE_AUTH_PASSWORD_HASH)" ]; then
+	step "armdash passwd" \
+		"prints AD_CORE_AUTH_USER and AD_CORE_AUTH_PASSWORD_HASH for $CONF," \
+		"the login that uploads a floor plan and places devices; without it" \
+		"nothing can be changed"
+fi
+
+units=
+case "$prom_url" in
+"" | *://127.0.0.1* | *://localhost* | *://\[::1\]*)
+	if [ ! -f "$PROM_CONF" ]; then
+		step "set up Prometheus and node_exporter on this host" \
+			"install them if the package manager did not, use $EXAMPLE" \
+			"as $PROM_CONF and start Prometheus with" \
+			"--storage.tsdb.retention.time=10y, see $DOCS"
+	else
+		jobs=
+		active "$PROM_CONF" ":$port([^0-9]|\$)" || jobs="the armdash job"
+		active "$PROM_CONF" ':9100([^0-9]|$)' || jobs="${jobs:+$jobs and }the node job"
+		if [ -n "$jobs" ]; then
+			step "add $jobs to $PROM_CONF" \
+				"$EXAMPLE has both, armdash's port is the one in" \
+				"AD_CORE_ADDR, now $port; restart Prometheus afterwards"
+		fi
+
+		args=
+		for f in /etc/conf.d/prometheus /etc/default/prometheus /etc/sysconfig/prometheus; do
+			if [ -f "$f" ]; then
+				args=$f
+				break
+			fi
+		done
+		if [ -z "$args" ]; then
+			step "keep the history: start Prometheus with --storage.tsdb.retention.time=10y" \
+				"the default is 15 days"
+		elif ! active "$args" 'storage\.tsdb\.retention'; then
+			step "keep the history: add --storage.tsdb.retention.time=10y" \
+				"to the arguments in $args, the default is 15 days"
+		fi
+
+		exporter=
+		for u in prometheus-node-exporter node_exporter node-exporter; do
+			if unit_file "$u"; then
+				exporter=$u
+				break
+			fi
+		done
+		for u in prometheus $exporter; do
+			unit_file "$u" || continue
+			[ "$(systemctl is-enabled "$u" 2>/dev/null)" = enabled ] || units="$units $u"
+		done
+	fi
+	;;
+*)
+	step "let the Prometheus at $prom_url scrape this host" \
+		"a job for armdash's /metrics on port $port, see $EXAMPLE"
+	;;
+esac
+
+step "sudo systemctl enable --now$units armdash"
 
 cat <<EOF
 
-armdash is installed. The systemd unit is present but disabled. To finish:
-
-  1. edit $CONF
-       AD_CORE_ADDR           where to listen, :80 for the default HTTP port
-       AD_CORE_TLS_*          certificate, key and :443 to serve HTTPS as well
-       AD_CORE_PROMETHEUS_URL where the metrics are read from
-       AD_SYSTEM_FRITZHOME_*  FRITZ!Box host and credentials
-  2. armdash passwd
-       prints AD_CORE_AUTH_USER and AD_CORE_AUTH_PASSWORD_HASH for $CONF,
-       the login that uploads a floor plan and places devices; without it
-       nothing can be changed
-  3. sudo systemctl enable --now armdash
-
-Every metric is read from Prometheus, so it needs one reachable at
-AD_CORE_PROMETHEUS_URL to show anything.
+Every metric is read from Prometheus. Step by step: $DOCS
 EOF
 
 exit 0
