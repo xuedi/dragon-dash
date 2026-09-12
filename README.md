@@ -7,8 +7,12 @@ A single-binary web dashboard for a home server. One tab per *system*: server
 metrics, FRITZ!Box smart home, and whatever comes next. Everything is read from
 Prometheus, so every number on screen has history behind it.
 
-Built for a small always-on ARM home server running Arch Linux ARM, but
-nothing in it is specific to any particular board.
+The focus is **persistent smart home data**: every power, temperature and
+humidity reading goes into Prometheus and stays there for years. It is built
+for small always-on ARM boards, where memory and watts are scarce, and runs
+just as well on any Linux server or distribution.
+
+Project page: [armdash.org](https://armdash.org)
 
 <img src="docs/images/floorplan.png" alt="FritzHome floor plan" width="700">
 
