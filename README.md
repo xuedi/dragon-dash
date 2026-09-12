@@ -1,6 +1,6 @@
 # armdash
 
-![version](https://img.shields.io/badge/version-0.13.2-blue)
+![version](https://img.shields.io/badge/version-0.13.3-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -86,11 +86,22 @@ built from the same commit. The full list is in
 [`docs/deployment.md`](docs/deployment.md#what-a-release-contains).
 
 ```bash
-sudo pacman -U armdash_*_linux_arm64.pkg.tar.zst   # or apt / dnf install ./armdash_*
+sudo pacman -U armdash_*_linux_arm64.pkg.tar.zst   # brings Prometheus and node_exporter
 armdash passwd                                     # prints the login lines
 sudoedit /etc/armdash/armdash.env                  # address, Prometheus, FRITZ!Box, login
-sudo systemctl enable --now armdash
+sudo cp /usr/share/armdash/prometheus.yml.example /etc/prometheus/prometheus.yml
+sudoedit /etc/conf.d/prometheus                    # PROMETHEUS_ARGS="--storage.tsdb.retention.time=10y"
+sudo systemctl enable --now prometheus prometheus-node-exporter armdash
 ```
+
+That is Arch. On Debian, Ubuntu and Fedora install with
+`sudo apt install ./armdash_*.deb` or `sudo dnf install ./armdash_*.rpm`, not
+`dpkg -i` or `rpm -i`, which skip the dependencies. The retention flag goes in
+`/etc/default/prometheus` as `ARGS="..."`, and on Debian and Ubuntu, where
+Prometheus runs already, `sudo systemctl restart prometheus` takes the place of
+enabling it. The install message lists whatever is still missing on the
+machine, and [`docs/install.md`](docs/install.md) has every step and how to
+check that it works.
 
 `just install` does the same from a checkout of this repository, without the
 dependencies.
@@ -103,13 +114,10 @@ positions. Configuration is read-only and the history lives in Prometheus.
 
 armdash keeps no history itself, so a full deployment is three services:
 node_exporter and armdash's own `/metrics` are scraped by Prometheus, and
-armdash queries Prometheus back to draw the pages. The packages bring
-Prometheus and node_exporter along. Prometheus then needs a scrape job for
-each and a longer retention than its default 15 days: the post-install looks
-at the local setup and names what is still missing, and
-`/usr/share/armdash/prometheus.yml.example` has the jobs. Step by step, for
-Arch, Debian and Fedora, in [`docs/install.md`](docs/install.md). `deploy/`
-also holds a Compose stack for hosts where containers are preferred.
+armdash queries Prometheus back to draw the pages. The example configuration
+scrapes both every 60 s, and the flag keeps ten years of history instead of
+Prometheus' default 15 days. `deploy/` also holds a Compose stack for hosts
+where containers are preferred.
 
 ## Configuring it
 
