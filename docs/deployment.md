@@ -29,13 +29,13 @@ and the navbar sidebar, under the Build label.
 ```mermaid
 flowchart LR
     A[version.go + README badge bumped] --> B[push to main]
-    B --> C[CI: gofmt, vet, tests, arm64 build]
+    B --> C[CI: gofmt, vet, tests, every target cross-compiled]
     C --> D{tag vX.Y.Z exists?}
     D -->|yes| E[nothing to do]
     D -->|no| F[tag vX.Y.Z]
     F --> G[GoReleaser]
-    G --> H[tar.gz, amd64 + arm64]
-    G --> I[deb, rpm, Arch packages]
+    G --> H[tar.gz for every target]
+    G --> I[deb, rpm, Arch packages per Linux arch]
     G --> J[checksums.txt]
     G --> K[GitHub release with a git changelog]
 ```
@@ -57,14 +57,21 @@ the way to check a packaging change before tagging. It needs `goreleaser` on `PA
 
 | Artifact | For |
 |---|---|
-| `armdash_<version>_linux_arm64.tar.gz` | the binary, README, licence, `.env.dist`, the unit file |
-| `armdash_<version>_linux_amd64.tar.gz` | same, for an x86 host |
-| `armdash_<version>_*.pkg.tar.zst` | Arch and Arch ARM |
-| `armdash_<version>_*.deb` / `.rpm` | Debian, Ubuntu, Fedora |
+| `armdash_<version>_<os>_<arch>.tar.gz` | the binary, README, licence, `.env.dist`, the unit file |
+| `armdash_<version>_linux_<arch>.pkg.tar.zst` | Arch and Arch ARM |
+| `armdash_<version>_linux_<arch>.deb` / `.rpm` | Debian, Ubuntu, Raspberry Pi OS, Fedora |
 | `checksums.txt` | verifying any of the above |
 
-The binary is static and pure Go, so the target needs no toolchain, no runtime and no shared
-library beyond what a bare system already has.
+| Platform | Architectures | Packages |
+|---|---|---|
+| Linux | `amd64`, `arm64`, `armv7`, `riscv64` | deb and rpm for all four, Arch for all but riscv64 |
+| FreeBSD | `amd64`, `arm64` | tarball only |
+| macOS | `amd64`, `arm64` | tarball only |
+
+`armv7` is 32-bit ARM, such as Raspberry Pi OS 32-bit, and packages as `armhf`. The binary is
+static and pure Go, so a target needs no toolchain, no runtime and no shared library beyond what a
+bare system already has. The packages and the unit are systemd's; on FreeBSD and macOS the binary
+runs the same, under whatever supervises services there.
 
 ## What the packages install
 
@@ -162,8 +169,9 @@ armdash appears twice on purpose. It polls the FRITZ!Box and republishes what it
 `/metrics` for Prometheus to scrape, and it queries Prometheus to draw the pages. That is why the
 FRITZ!Box credentials exist in exactly one place and there is no separate exporter to keep alive.
 
-Prometheus and node_exporter are both packaged for aarch64 (`extra/prometheus`,
-`extra/prometheus-node-exporter`), so a native install needs no containers. `deploy/` also holds a
+Prometheus and node_exporter are packaged by the major distributions on ARM and x86 alike (on
+Arch `extra/prometheus` and `extra/prometheus-node-exporter`), so a native install needs no
+containers. `deploy/` also holds a
 compose file for hosts where containers are preferred.
 
 Two Prometheus flags matter:

@@ -1,6 +1,6 @@
 # armdash
 
-![version](https://img.shields.io/badge/version-0.12.2-blue)
+![version](https://img.shields.io/badge/version-0.12.3-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -8,9 +8,11 @@ metrics, FRITZ!Box smart home, and whatever comes next. Everything is read from
 Prometheus, so every number on screen has history behind it.
 
 The focus is **persistent smart home data**: every power, temperature and
-humidity reading goes into Prometheus and stays there for years. It is built
-for small always-on ARM boards, where memory and watts are scarce, and runs
-just as well on any Linux server or distribution.
+humidity reading goes into Prometheus and stays there for years. And it is
+**minimal**: one static binary that idles at around 20 MB of memory and under
+0.1 % of one core, measured on the Radxa Dragon Q6A it was written for. That
+fits a small ARM board as comfortably as an x86 server, on any Linux
+distribution, FreeBSD or macOS.
 
 Project page: [armdash.org](https://armdash.org)
 
@@ -76,8 +78,10 @@ frame, through a built-in reverse proxy, or opens in a new tab, from a few
 
 Grab a package or a tarball from [releases](https://github.com/xuedi/armdash/releases).
 Every version that lands on `main` is built and released automatically, each
-with static amd64 and arm64 binaries plus `.deb`, `.rpm` and Arch packages, all
-built from the same commit.
+with static binaries for Linux (amd64, arm64, armv7 and riscv64), FreeBSD and
+macOS (amd64 and arm64), plus `.deb`, `.rpm` and Arch packages for Linux, all
+built from the same commit. The full list is in
+[`docs/deployment.md`](docs/deployment.md#what-a-release-contains).
 
 ```bash
 sudo pacman -U armdash_*_linux_arm64.pkg.tar.zst   # or dpkg -i / rpm -i
@@ -97,7 +101,8 @@ positions. Configuration is read-only and the history lives in Prometheus.
 armdash keeps no history itself, so a full deployment is three services:
 node_exporter and armdash's own `/metrics` are scraped by Prometheus, and
 armdash queries Prometheus back to draw the pages. Both exporters are
-packaged for aarch64, so none of it needs containers. `deploy/` also holds a
+packaged by the major distributions on ARM and x86 alike, so none of it needs
+containers. `deploy/` also holds a
 Compose stack for hosts where containers are preferred. Details in
 [`docs/deployment.md`](docs/deployment.md).
 

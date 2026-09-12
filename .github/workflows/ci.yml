@@ -29,10 +29,14 @@ jobs:
 
       - run: go test ./...
 
-      # The board is the deployment target; catching an arch break here is
-      # cheaper than catching it at release time.
-      - name: cross-compile for arm64
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./...
+      # Every platform a release ships. Catching a break here is cheaper than
+      # catching it at release time. Keep in step with .goreleaser.yaml.
+      - name: cross-compile the release targets
+        run: |
+          for t in linux/amd64 linux/arm64 linux/arm linux/riscv64 freebsd/amd64 freebsd/arm64 darwin/amd64 darwin/arm64; do
+            echo "$t"
+            CGO_ENABLED=0 GOOS=${t%/*} GOARCH=${t#*/} GOARM=7 go build ./...
+          done
 
   # Every version that reaches main is released. Once the tests pass, this tags
   # the commit when version.go names a version with no tag yet, and publishes it

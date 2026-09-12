@@ -12,14 +12,31 @@ builds:
     main: ./cmd/armdash
     binary: armdash
     env:
-      # Pure Go, no cgo, so arm64 needs no cross toolchain and the binary runs
-      # on any glibc or musl system.
+      # Pure Go, no cgo, so no target needs a cross toolchain and the binary
+      # runs on any glibc or musl system.
       - CGO_ENABLED=0
     goos:
       - linux
+      - freebsd
+      - darwin
     goarch:
       - amd64
       - arm64
+      - arm
+      - riscv64
+    # 32-bit Raspberry Pi OS and older boards. v7 packages as armhf, the
+    # architecture those systems install.
+    goarm:
+      - "7"
+    ignore:
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: riscv64
+      - goos: darwin
+        goarch: arm
+      - goos: darwin
+        goarch: riscv64
     ldflags:
       - -s -w
     mod_timestamp: "{{ .CommitTimestamp }}"
@@ -28,7 +45,7 @@ archives:
   - id: armdash
     formats:
       - tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}"
     files:
       - README.md
       - LICENSE
