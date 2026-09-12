@@ -83,7 +83,7 @@ think.
 
 ## Uploading
 
-The **Upload** button in the info bar posts the chosen file straight away. It takes a SweetHome3D
+The **Upload** button in the info bar, shown once logged in, posts the chosen file straight away. It takes a SweetHome3D
 drawing or a picture of the flat: an SVG, PNG, JPEG or GIF. What a file is gets decided by its
 content, never its name.
 
@@ -137,10 +137,12 @@ positions are data, kept in the system's own data directory: `DD_CORE_DATA_DIR/f
 `/var/lib/dragon-dash/fritzhome` under the packaged unit, whose `StateDirectory=` provides it. With no
 data directory the page offers neither button and both endpoints answer 404.
 
-Anyone who can open the dashboard can replace the plan and move the devices; that is the deliberate
-trade for running without a login. Nobody else can: every system endpoint goes through Go's
-cross-origin protection, so a page on another site cannot make a visitor's browser post to it. The
-worst a visitor on the LAN can do is replace a drawing, and the previous one is kept.
+Anyone who can open the dashboard sees the plan; only the logged-in owner can replace it or move
+the devices, see [authentication.md](authentication.md). Logged out, the page draws neither button,
+and the shell answers a write with 401 before it reaches the system. If the session ends while the
+page is open, the upload shows that notice where a rejected file's would go. Every system endpoint
+also goes through Go's cross-origin protection, so a page on another site cannot make the owner's
+browser post to it.
 
 ## Colour
 

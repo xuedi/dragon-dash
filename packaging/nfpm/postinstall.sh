@@ -49,10 +49,14 @@ dragon-dash is installed. The systemd unit is present but disabled. To finish:
        DD_CORE_TLS_*          certificate, key and :443 to serve HTTPS as well
        DD_CORE_PROMETHEUS_URL where the metrics are read from
        DD_SYSTEM_FRITZHOME_*  FRITZ!Box host and credentials
-  2. sudo systemctl enable --now dragon-dash
+  2. dragon-dash passwd
+       prints DD_CORE_AUTH_USER and DD_CORE_AUTH_PASSWORD_HASH for $CONF,
+       the login that uploads a floor plan and places devices; without it
+       nothing can be changed
+  3. sudo systemctl enable --now dragon-dash
 
-It reads from Prometheus and writes nothing, so it needs a Prometheus reachable
-at DD_CORE_PROMETHEUS_URL to show anything.
+Every metric is read from Prometheus, so it needs one reachable at
+DD_CORE_PROMETHEUS_URL to show anything.
 EOF
 
 exit 0

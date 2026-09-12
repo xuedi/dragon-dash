@@ -49,6 +49,13 @@
           </div>
         </div>
         <a class="navbar-item {{if .SettingsActive}}has-text-weight-semibold has-text-link{{end}}" href="/settings">Settings</a>
+        {{if .LoggedIn}}
+        <form class="navbar-item" method="post" action="/logout">
+          <button type="submit" class="button is-small">Log out</button>
+        </form>
+        {{else if .Login}}
+        <a class="navbar-item {{if .LoginActive}}has-text-weight-semibold has-text-link{{end}}" href="/login?next={{.Here}}">Log in</a>
+        {{end}}
       </div>
     </div>
   </div>

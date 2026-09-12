@@ -38,24 +38,35 @@ dev-down:
 push-arm: build-arm
     scp bin/{{app}}-arm64 dragon:/tmp/{{app}}
 
-# Cut a release: check that VERSION matches version.go and the README badge on a
-# clean main, then tag vVERSION and push it. The tag triggers the Release
-# workflow, which builds the archives and the deb/rpm/Arch packages.
-release VERSION:
+# Install from source on this machine the way the packages do: the binary in
+# /usr/local/bin, the service user, a seeded /etc/dragon-dash/dragon-dash.env
+# and the hardened unit, left disabled.
+install: build
     #!/usr/bin/env bash
     set -euo pipefail
-    ver="{{VERSION}}"
-    ver="${ver#v}"
-    grep -q "\"$ver\"" internal/version/version.go || { echo "internal/version/version.go is not at $ver"; exit 1; }
-    grep -q "version-$ver-" README.md || { echo "the README badge is not at $ver"; exit 1; }
-    branch="$(git rev-parse --abbrev-ref HEAD)"
-    [ "$branch" = "main" ] || { echo "not on main (on $branch)"; exit 1; }
-    [ -z "$(git status --porcelain)" ] || { echo "working tree is dirty; commit first"; exit 1; }
-    git tag "v$ver"
-    git push origin "v$ver"
-    echo "pushed tag v$ver - watch the Release workflow for the published artifacts"
+    bin=/usr/local/bin/{{app}}
+    unit=/etc/systemd/system/{{app}}.service
+    conf=/etc/{{app}}/{{app}}.env
+    nologin=/usr/sbin/nologin
+    [ -x "$nologin" ] || nologin=/sbin/nologin
+    [ -x "$nologin" ] || nologin=/bin/false
+    echo "installing {{app}} -> $bin (elevating with sudo)"
+    sudo install -Dm755 bin/{{app}} "$bin"
+    getent group {{app}} >/dev/null 2>&1 || sudo groupadd --system {{app}}
+    getent passwd {{app}} >/dev/null 2>&1 || sudo useradd --system --gid {{app}} --home-dir / \
+        --no-create-home --shell "$nologin" --comment "dragon-dash dashboard" {{app}}
+    sudo install -d -m 0750 -o root -g {{app}} /etc/{{app}}
+    [ -f "$conf" ] || sudo install -m 0640 -o root -g {{app}} .env.dist "$conf"
+    sed "s#^ExecStart=/usr/bin/{{app}}#ExecStart=$bin#" packaging/systemd/{{app}}.service | sudo tee "$unit" >/dev/null
+    sudo systemctl daemon-reload
+    echo
+    echo "installed; the unit is disabled. to finish:"
+    echo "  1. sudoedit $conf     address, Prometheus, FRITZ!Box"
+    echo "  2. $bin passwd        and add the two lines it prints to $conf"
+    echo "  3. sudo systemctl enable --now {{app}}"
 
 # Local dry run of the whole packaging pipeline: builds the binary and every
-# distro package into ./dist without publishing (needs goreleaser on PATH)
+# distro package into ./dist without publishing (needs goreleaser on PATH).
+# Releases themselves are made by CI, see docs/deployment.md.
 release-snapshot:
     goreleaser release --snapshot --clean

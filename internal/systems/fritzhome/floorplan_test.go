@@ -153,9 +153,15 @@ func post(mux *http.ServeMux, path, body string) *httptest.ResponseRecorder {
 	return rec
 }
 
+// page renders the floor plan as the logged-in owner sees it.
 func page(t *testing.T, f *FritzHome) string {
 	t.Helper()
-	h, err := f.Render("floorplan", httptest.NewRequest(http.MethodGet, "/s/fritzhome/floorplan", nil))
+	return render(t, f, system.AllowEdit(httptest.NewRequest(http.MethodGet, "/s/fritzhome/floorplan", nil)))
+}
+
+func render(t *testing.T, f *FritzHome, r *http.Request) string {
+	t.Helper()
+	h, err := f.Render("floorplan", r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,6 +280,18 @@ func TestWithoutDataDirNothingIsWritable(t *testing.T) {
 	}
 	if !strings.Contains(html, `data-ain="116300343807"`) {
 		t.Error("the JSON plan's own devices are missing")
+	}
+}
+
+func TestEditControlsNeedLogin(t *testing.T) {
+	f, mux := newTestFritz(t, t.TempDir(), "")
+	upload(mux, sh3dFile(t, testHome))
+	html := render(t, f, httptest.NewRequest(http.MethodGet, "/s/fritzhome/floorplan", nil))
+	if strings.Contains(html, "hx-post") || strings.Contains(html, `id="fp-edit"`) {
+		t.Error("upload or edit offered to a visitor who is not logged in")
+	}
+	if !strings.Contains(html, "Hall") {
+		t.Error("the plan itself should still be shown")
 	}
 }
 

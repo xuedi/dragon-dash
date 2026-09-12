@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"dragon-dash/internal/config"
+	"dragon-dash/internal/system"
 )
 
 // The cookie is client controlled and its value lands in an attribute on the
@@ -189,7 +190,7 @@ func TestRootFallsBackToFirstFramedLink(t *testing.T) {
 }
 
 func TestSystemAPIRejectsCrossSiteWrites(t *testing.T) {
-	h := newTestServer(t).api("fritzhome", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := newAuthServer(t).api("fritzhome", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	cases := []struct {
@@ -208,7 +209,7 @@ func TestSystemAPIRejectsCrossSiteWrites(t *testing.T) {
 			r.Header.Set("Sec-Fetch-Site", c.site)
 		}
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, r)
+		h.ServeHTTP(rec, system.AllowEdit(r))
 		if rec.Code != c.want {
 			t.Errorf("%s with Sec-Fetch-Site %q = %d, want %d", c.method, c.site, rec.Code, c.want)
 		}

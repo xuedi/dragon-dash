@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -30,3 +33,58 @@ jobs:
       # cheaper than catching it at release time.
       - name: cross-compile for arm64
         run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./...
+
+  # Every version that reaches main is released. Once the tests pass, this tags
+  # the commit when version.go names a version with no tag yet, and publishes it
+  # in the same job: a tag pushed with the workflow's own token starts no other
+  # workflow, so a separate tag-triggered one would never run.
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # GoReleaser writes the changelog from the log since the last tag.
+          fetch-depth: 0
+
+      - name: version
+        id: version
+        run: |
+          ver=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/version/version.go)
+          if [ -z "$ver" ]; then echo "no version in internal/version/version.go"; exit 1; fi
+          if ! grep -qF "badge/version-$ver-" README.md; then echo "the README badge is not at $ver"; exit 1; fi
+          if git rev-parse -q --verify "refs/tags/v$ver" >/dev/null; then
+            echo "v$ver is released already, nothing to do"
+          else
+            echo "tag=v$ver" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: tag
+        if: steps.version.outputs.tag != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - uses: actions/setup-go@v5
+        if: steps.version.outputs.tag != ''
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      # No node step: Bulma, htmx and uPlot are committed files, so there is
+      # nothing to build before the Go build embeds web/.
+      - uses: goreleaser/goreleaser-action@v6
+        if: steps.version.outputs.tag != ''
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

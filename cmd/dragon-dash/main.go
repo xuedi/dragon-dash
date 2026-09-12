@@ -29,6 +29,14 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "passwd" {
+		if err := passwd(os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintln(os.Stderr, "dragon-dash passwd:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	addr := flag.String("addr", "",
 		"listen address, overrides DD_CORE_ADDR; use :8080 to accept connections from the LAN")
 	envFiles := flag.String("env", ".env.dist,.env.local",

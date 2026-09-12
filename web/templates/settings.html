@@ -3,7 +3,7 @@
 
 <div class="notification is-info is-light">
   <p><strong>Configuration is read-only.</strong> It is loaded from env files and the environment at
-  startup, so there is nothing to submit here and nothing an unauthenticated visitor can change.</p>
+  startup, so there is nothing to submit here, logged in or not.</p>
   <p class="mt-2 is-size-7">Files read, later ones win, the real environment wins over all:
     {{range .Files}}<code class="mr-2">{{.}}</code>{{end}}
     Edit a file and restart to apply.</p>

@@ -1,10 +1,10 @@
 // Package config loads read-only configuration from env files and the
 // environment.
 //
-// Nothing here is writable at runtime. That is the point: with no write path
-// there is no settings form to protect, which is what makes running on a LAN
-// without authentication defensible. The app can be pointed somewhere new only
-// by editing a file and restarting it.
+// Nothing here is writable at runtime. That is the point: no page, logged in
+// or not, can point the application somewhere else or read a credential back
+// out. The app can be pointed somewhere new only by editing a file and
+// restarting it.
 //
 // Sources are applied in order, each overriding the last:
 //

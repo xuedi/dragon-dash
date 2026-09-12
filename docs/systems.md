@@ -31,9 +31,10 @@ what keeps them genuinely independent.
 
 `Register` gives a system a subtree at `/s/<id>/api/` for htmx fragments and JSON. The Host
 system's chart data comes from there, FritzHome's floor plan upload goes there. The shell wraps the
-whole subtree: a disabled system's endpoints answer 404, and every state-changing request passes
-Go's `http.CrossOriginProtection`, so a write endpoint is safe from cross-site requests without the
-system doing anything.
+whole subtree: a disabled system's endpoints answer 404, and every state-changing request needs the
+owner's session and passes Go's `http.CrossOriginProtection`, so a write endpoint is protected
+without the system doing anything. A page asks `system.CanEdit(r)` whether to draw its edit
+controls, so a new system gets the login for free. See [authentication.md](authentication.md).
 
 `Deps.DataDir` is the system's own directory for what people change through a page, empty when no
 data directory is configured. A system that writes offers nothing to change when it is empty. See

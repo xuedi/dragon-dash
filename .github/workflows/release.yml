@@ -1,9 +1,13 @@
 name: Release
 
+# Releases are made by the release job in ci.yml. This one only publishes a
+# tag that exists already, for when that job tagged and then failed.
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish, e.g. v0.11.0"
+        required: true
 
 permissions:
   contents: write
@@ -14,6 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag }}
           # GoReleaser builds the changelog from the log, so a shallow clone
           # would produce an empty one.
           fetch-depth: 0
@@ -24,8 +29,6 @@ jobs:
           # There is no go.sum to key a cache on, the project has no dependencies.
           cache: false
 
-      # No node step: Bulma, htmx and uPlot are committed files, so there is
-      # nothing to build before the Go build embeds web/.
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"

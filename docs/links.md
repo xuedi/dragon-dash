@@ -107,10 +107,10 @@ own rewrite rules keep working unchanged, because it still receives the paths it
 
 ## Security
 
-dragon-dash **adds no authentication** in front of a link. A proxied site is exactly as open to the
-LAN as the dashboard is, and its own login is what protects it. The proxy only ever forwards to the
-URLs in the configuration, never to anything taken from the request, so it cannot be used as an
-open proxy.
+The dashboard's login does **not** cover links, proxied ones included. A proxied site is exactly
+as open to the LAN as the dashboard's pages are, and its own login is what protects it. The proxy
+only ever forwards to the URLs in the configuration, never to anything taken from the request, so
+it cannot be used as an open proxy.
 
 A proxied site runs on the dashboard's origin, so its scripts can read the dashboard's pages and its
 theme cookie. The dashboard is read-only and holds nothing secret, which is what makes that

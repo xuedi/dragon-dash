@@ -55,12 +55,14 @@ func theme(r *http.Request) string {
 }
 
 type Server struct {
-	cfg   *config.Config
-	log   *slog.Logger
-	tmpl  *template.Template
-	mux   *http.ServeMux
-	files []string
-	links []links.Link
+	cfg     *config.Config
+	log     *slog.Logger
+	tmpl    *template.Template
+	mux     *http.ServeMux
+	files   []string
+	links   []links.Link
+	login   *login
+	xorigin *http.CrossOriginProtection
 }
 
 func New(cfg *config.Config, log *slog.Logger, files []string) (*Server, error) {
@@ -73,12 +75,22 @@ func New(cfg *config.Config, log *slog.Logger, files []string) (*Server, error) 
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
-	s := &Server{cfg: cfg, log: log, tmpl: tmpl, mux: http.NewServeMux(), files: files, links: ls}
+	lg, err := newLogin(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if lg == nil {
+		log.Info("no login configured, editing is off")
+	}
+	s := &Server{cfg: cfg, log: log, tmpl: tmpl, mux: http.NewServeMux(), files: files, links: ls,
+		login: lg, xorigin: http.NewCrossOriginProtection()}
 	s.routes()
 	return s, nil
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mux.ServeHTTP(w, s.withSession(r))
+}
 
 // PromURL is handed to systems so they always read the current value rather
 // than a copy taken at startup.
@@ -88,6 +100,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /static/", http.FileServerFS(web.Static))
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /settings", s.handleSettings)
+	s.mux.HandleFunc("GET /login", s.handleLoginPage)
+	s.mux.Handle("POST /login", s.xorigin.Handler(http.HandlerFunc(s.handleLogin)))
+	s.mux.Handle("POST /logout", s.xorigin.Handler(http.HandlerFunc(s.handleLogout)))
 	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.mux.HandleFunc("GET /s/{system}/{$}", s.handleSystemDefault)
 	s.mux.HandleFunc("GET /s/{system}/{slug}", s.handleSystemPage)
@@ -118,12 +133,25 @@ func (s *Server) routes() {
 	}
 }
 
-// api guards a system's own endpoints. The cross-site check sits here rather
-// than in each system, so a new write endpoint is covered without anyone having
-// to remember it. A request with neither Sec-Fetch-Site nor Origin, curl for
-// instance, is not a browser being tricked and passes.
+// api guards a system's own endpoints. The checks sit here rather than in each
+// system, so a new write endpoint is covered without anyone having to remember
+// it: a write needs a session, and it has to come from this site. A request
+// with neither Sec-Fetch-Site nor Origin, curl for instance, is not a browser
+// being tricked and passes the second check, never the first.
 func (s *Server) api(id string, h http.Handler) http.Handler {
-	protected := http.NewCrossOriginProtection().Handler(h)
+	protected := s.xorigin.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case safeMethod(r.Method):
+		case s.login == nil:
+			s.refuse(w, r, http.StatusForbidden, "Editing is off",
+				"No login is configured, see "+config.EnvName(authUserKey)+".")
+			return
+		case !system.CanEdit(r):
+			s.refuse(w, r, http.StatusUnauthorized, "Not logged in", "Log in to make changes.")
+			return
+		}
+		h.ServeHTTP(w, r)
+	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.cfg.Enabled(id) {
 			http.NotFound(w, r)
@@ -281,6 +309,10 @@ type layoutData struct {
 	SettingsActive bool
 	Body           template.HTML
 	Error          string
+	// Login is whether one is configured at all, LoggedIn whether this visitor
+	// is, and Here where the Log in link returns to.
+	Login, LoggedIn, LoginActive bool
+	Here                         string
 	// Frame replaces the whole content area with an iframe. FrameFrom and
 	// FrameTo are set for a same-origin frame, whose location is mirrored into
 	// the address bar.
@@ -288,7 +320,13 @@ type layoutData struct {
 }
 
 func (s *Server) layout(r *http.Request, active system.System, slug string) layoutData {
-	d := layoutData{Version: version.Version, Theme: theme(r)}
+	d := layoutData{
+		Version:  version.Version,
+		Theme:    theme(r),
+		Login:    s.login != nil,
+		LoggedIn: system.CanEdit(r),
+		Here:     r.URL.RequestURI(),
+	}
 	for _, sys := range s.enabled() {
 		isActive := active != nil && sys.ID() == active.ID()
 		d.Top = append(d.Top, topLink{Href: "/s/" + sys.ID() + "/", Title: sys.Title(), Active: isActive})
@@ -314,7 +352,9 @@ func (s *Server) layout(r *http.Request, active system.System, slug string) layo
 	return d
 }
 
-func (s *Server) render(w http.ResponseWriter, d layoutData) {
+func (s *Server) render(w http.ResponseWriter, d layoutData) { s.renderCode(w, http.StatusOK, d) }
+
+func (s *Server) renderCode(w http.ResponseWriter, code int, d layoutData) {
 	var buf bytes.Buffer
 	if err := s.tmpl.ExecuteTemplate(&buf, "layout", d); err != nil {
 		s.log.Error("layout render failed", "err", err)
@@ -322,6 +362,7 @@ func (s *Server) render(w http.ResponseWriter, d layoutData) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(code)
 	_, _ = buf.WriteTo(w)
 }
 
@@ -329,7 +370,8 @@ func (s *Server) render(w http.ResponseWriter, d layoutData) {
 //
 // Read-only. Configuration comes from .env files and the environment, so this
 // page reports what is in effect and where each value came from. There is no
-// form to submit, which is why an unauthenticated LAN deployment is defensible.
+// form to submit. It still names hosts and users, so once a login is
+// configured it is only shown to whoever is logged in.
 
 type settingsField struct {
 	Label, Help string
@@ -383,9 +425,17 @@ func (s *Server) settingsData() settingsData {
 	if dir := DataDir(s.cfg); dir != "" {
 		dataUnset = dir + "  (systemd)"
 	}
+	hash := s.field(authHashKey, "Password hash",
+		"Only whether it is set is shown. dragon-dash passwd prints a new one.", "no login, editing is off")
+	if hash.Set {
+		hash.Value = redacted
+	}
 	d := settingsData{
 		Files: s.files,
 		Core: []settingsField{
+			s.field(authUserKey, "Login",
+				"The one user who may upload a floor plan, place devices and open this page.", "no login, editing is off"),
+			hash,
 			s.field(prometheusURLKey, "Prometheus URL",
 				"Every metric on every page is read from here.", ""),
 			s.field(tlsCertKey, "TLS certificate",
@@ -451,6 +501,9 @@ func (s *Server) settingsData() settingsData {
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	if s.requireLogin(w, r) {
+		return
+	}
 	var body bytes.Buffer
 	if err := s.tmpl.ExecuteTemplate(&body, "settings", s.settingsData()); err != nil {
 		s.log.Error("settings render failed", "err", err)

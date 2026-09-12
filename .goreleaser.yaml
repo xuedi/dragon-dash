@@ -1,8 +1,8 @@
 # GoReleaser builds the binary, the archives and every distro package from one
-# config. The in-binary version lives in internal/version/version.go and the
-# release tag must equal it, which the `just release` guard enforces. Nothing is
-# stamped in at link time, so a tarball built here and a `go build` on a laptop
-# report the same version.
+# config. The in-binary version lives in internal/version/version.go, and CI's
+# release job makes the tag from that file, so the two cannot disagree. Nothing
+# is stamped in at link time, so a tarball built here and a `go build` on a
+# laptop report the same version.
 version: 2
 
 project_name: dragon-dash

@@ -10,7 +10,7 @@ time, so a binary built from a tarball, from CI or from a `go build` on a laptop
 same number. Two other places mirror it and must move in the same commit:
 
 - the version badge in `README.md`
-- the git tag, which is `v` plus the constant
+- the git tag, `v` plus the constant, which CI makes (see below)
 
 Semantic versioning, pre-1.0: patch for a fix or a small change, minor for a notable feature, and
 1.0 is a deliberate milestone rather than something that arrives by accretion.
@@ -24,17 +24,15 @@ dragon-dash -version
 
 and the navbar sidebar, under the Build label.
 
-## Cutting a release
+## Releases
 
 ```mermaid
 flowchart LR
-    A[version.go + README badge bumped] --> B[just release X.Y.Z]
-    B --> C{guards}
-    C -->|version.go matches| D[git tag vX.Y.Z]
-    C -->|README badge matches| D
-    C -->|on main, tree clean| D
-    D --> E[push tag]
-    E --> F[Release workflow]
+    A[version.go + README badge bumped] --> B[push to main]
+    B --> C[CI: gofmt, vet, tests, arm64 build]
+    C --> D{tag vX.Y.Z exists?}
+    D -->|yes| E[nothing to do]
+    D -->|no| F[tag vX.Y.Z]
     F --> G[GoReleaser]
     G --> H[tar.gz, amd64 + arm64]
     G --> I[deb, rpm, Arch packages]
@@ -42,9 +40,15 @@ flowchart LR
     G --> K[GitHub release with a git changelog]
 ```
 
-`just release VERSION` refuses to tag when the constant, the badge, the branch or a dirty tree
-disagree with what is being released. It only tags and pushes; everything after that happens in
-CI, so a release cannot depend on what happens to be installed on one machine.
+Every version that reaches `main` is released. CI's release job runs only on pushes to `main` and
+only once the tests pass. It reads the version from `version.go`, refuses when the README badge
+disagrees, and when that version has no tag yet it tags the commit and runs GoReleaser in the same
+job. A tag pushed with the workflow's own token starts no other workflow, which is why tagging and
+publishing cannot be split into two. A push that leaves the version alone releases nothing.
+
+Bumping the version is therefore the release decision, and before 1.0 every change that ships gets
+its own small release. Tags are never made by hand. If the job tags and then fails, the manual
+Release workflow publishes the existing tag again.
 
 `just release-snapshot` runs the whole pipeline locally into `./dist` without publishing, which is
 the way to check a packaging change before tagging. It needs `goreleaser` on `PATH`.
@@ -74,7 +78,13 @@ library beyond what a bare system already has.
 
 The post-install creates the `dragon-dash` system user, seeds the configuration only when there is
 not one already (an upgrade must never drop credentials) and leaves the unit disabled, because a
-dashboard with no FRITZ!Box credentials and no Prometheus address is not worth starting.
+dashboard with no FRITZ!Box credentials and no Prometheus address is not worth starting. Its next
+steps include `dragon-dash passwd`, which prints the owner login for the env file, see
+[authentication.md](authentication.md). Without it the dashboard runs, but nothing can be changed.
+
+`just install` does the same from a checkout on the machine itself: it builds, installs the binary
+to `/usr/local/bin`, creates the user, seeds the env file when there is none and installs the unit
+with its `ExecStart` pointed there, disabled. It needs sudo.
 
 The unit is hardened further than most, and can be, because **the app writes almost nothing**.
 Configuration is read-only by design and every metric lives in Prometheus. The one writable path is
@@ -86,6 +96,9 @@ answer on ports 80 and 443.
 `StateDirectory=` arrived in 0.10.0. A package upgrade brings the new unit; swapping only the binary
 does not, and until the unit is updated (and `systemctl daemon-reload` run) the floor plan page
 simply offers no upload and no edit mode.
+
+The login arrived in 0.11.0. An upgrade from an earlier version keeps every page, but loses Upload
+and Edit until `DD_CORE_AUTH_USER` and `DD_CORE_AUTH_PASSWORD_HASH` are in the env file.
 
 ## Configuration on a server
 

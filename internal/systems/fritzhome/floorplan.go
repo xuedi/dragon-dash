@@ -319,7 +319,7 @@ type floorplanPage struct {
 }
 
 func (f *FritzHome) renderFloorplan(r *http.Request) (template.HTML, error) {
-	d := floorplanPage{Example: examplePlan, Editable: f.dataDir != "", API: f.prefix}
+	d := floorplanPage{Example: examplePlan, Editable: f.dataDir != "" && system.CanEdit(r), API: f.prefix}
 	d.Top = system.PageTop{Title: "Floor plan"}
 	d.Top.Infof(`<span class="tag is-primary is-light">power</span>`)
 	d.Top.Infof(`<span class="tag is-link is-light">temperature</span>`)

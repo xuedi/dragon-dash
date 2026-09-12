@@ -49,13 +49,13 @@ type ConfigField struct {
 	Kind    FieldKind
 	Default string
 	// Secret hides the value on the settings page. Set it for anything that
-	// would be damaging to display on an unauthenticated page.
+	// would be damaging to display, even to someone logged in.
 	Secret bool
 }
 
 // Store is the subset of configuration a system may read: its own keys.
-// There is no setter. Configuration is read-only at runtime, which is what
-// lets the app run on a LAN without a login to protect.
+// There is no setter. Configuration is read-only at runtime, not even the
+// logged-in owner can change it through a page.
 type Store interface {
 	Get(key string) string
 	GetOr(key, def string) string
@@ -89,6 +89,22 @@ type System interface {
 	// endpoints (htmx fragments, JSON for charts) under prefix, which is
 	// always "/s/<id>/api/".
 	Register(mux *http.ServeMux, prefix string, deps Deps)
+}
+
+type editorKey struct{}
+
+// AllowEdit marks a request as coming from the logged-in owner. Only the shell
+// calls it, after checking the session.
+func AllowEdit(r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), editorKey{}, true))
+}
+
+// CanEdit reports whether a page should offer its edit controls. The shell
+// enforces the same rule on every write under /s/<id>/api/, so a system does
+// not check it again in its handlers.
+func CanEdit(r *http.Request) bool {
+	ok, _ := r.Context().Value(editorKey{}).(bool)
+	return ok
 }
 
 var registry []System
