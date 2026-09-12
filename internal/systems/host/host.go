@@ -9,16 +9,13 @@ package host
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"fmt"
 	"html/template"
-	"math"
 	"net/http"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"armdash/internal/chart"
 	"armdash/internal/promql"
 	"armdash/internal/system"
 )
@@ -28,40 +25,18 @@ var templatesFS embed.FS
 
 func init() { system.Register(&Host{}) }
 
-// chart describes one graphable metric. Adding a graph is adding an entry here.
+// charts are the graphable metrics. Adding a graph is adding an entry here.
 //
-// A chart is either a single Query or a list of named Series. Thermals is the
-// multi query case: one hottest-of-everything line cannot say which component
-// is warm, and the two SSDs are not even in the same metric.
-type chart struct {
-	Slug   string
-	Title  string
-	Query  string
-	Unit   string
-	Series []chartSeries
-
-	// FromZero pins the y axis at zero. True for percentages, where the
-	// distance from zero is the whole point. False for temperatures, where
-	// the interesting spread is a few degrees and a zero based axis would
-	// flatten every line on top of every other.
-	FromZero bool
-}
-
-// chartSeries is one line, or several: an empty Name means the query returns
-// more than one series and each is named from its own labels.
-type chartSeries struct {
-	Name  string
-	Query string
-}
-
-var charts = []chart{
+// Thermals is the multi query case: one hottest-of-everything line cannot say
+// which component is warm, and the two SSDs are not even in the same metric.
+var charts = []chart.Chart{
 	{Slug: "cpu", Title: "CPU", Unit: "%", FromZero: true,
 		Query: `100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)`},
 	{Slug: "memory", Title: "Memory", Unit: "%", FromZero: true,
 		Query: `100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)`},
 	{Slug: "storage", Title: "Storage", Unit: "%", FromZero: true,
 		Query: `100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|ramfs"})`},
-	{Slug: "thermals", Title: "Thermals", Unit: "°C", Series: []chartSeries{
+	{Slug: "thermals", Title: "Thermals", Unit: "°C", Series: []chart.Series{
 		{Name: "Hottest zone", Query: `max(node_thermal_zone_temp)`},
 		// One query, six lines, named from the type label. Listing the zones
 		// separately would cost six round trips for the same data.
@@ -114,18 +89,11 @@ var zoneNames = map[string]string{
 	"msm-skin-thermal": "Skin",
 }
 
-// series is the chart's lines, whether it declared one query or several.
-func (c chart) series() []chartSeries {
-	if len(c.Series) > 0 {
-		return c.Series
-	}
-	return []chartSeries{{Query: c.Query}}
-}
-
 type Host struct {
-	tmpl *template.Template
-	deps system.Deps
-	prom *promql.Client
+	tmpl   *template.Template
+	deps   system.Deps
+	prom   *promql.Client
+	charts *chart.Set
 }
 
 func (h *Host) ID() string { return "host" }
@@ -133,11 +101,7 @@ func (h *Host) ID() string { return "host" }
 func (h *Host) Title() string { return "Host" }
 
 func (h *Host) Nav() []system.NavItem {
-	nav := []system.NavItem{{Slug: "overview", Title: "Overview"}}
-	for _, c := range charts {
-		nav = append(nav, system.NavItem{Slug: c.Slug, Title: c.Title})
-	}
-	return nav
+	return append([]system.NavItem{{Slug: "overview", Title: "Overview"}}, chart.Nav(charts)...)
 }
 
 // ConfigSchema is empty: this system needs nothing beyond the core Prometheus
@@ -148,7 +112,9 @@ func (h *Host) Register(mux *http.ServeMux, prefix string, deps system.Deps) {
 	h.deps = deps
 	h.prom = promql.New(deps.PromURL)
 	h.tmpl = system.MustTemplates(templatesFS, "templates/*.html")
-	mux.HandleFunc("GET "+prefix+"range", h.handleRange)
+	h.charts = &chart.Set{Prom: h.prom, Charts: charts,
+		Names: func(context.Context) chart.Namer { return seriesName }}
+	h.charts.Register(mux, prefix)
 }
 
 type statCard struct {
@@ -169,38 +135,10 @@ func (h *Host) Render(slug string, r *http.Request) (template.HTML, error) {
 	if slug == "overview" {
 		return h.renderOverview(r)
 	}
-	for _, c := range charts {
-		if c.Slug == slug {
-			return h.renderChart(c)
-		}
+	if c, ok := chart.Find(charts, slug); ok {
+		return h.exec("range-chart", h.charts.Page(c, h.deps.PromURL() == ""))
 	}
 	return "", fmt.Errorf("unknown page %q", slug)
-}
-
-func (h *Host) renderChart(c chart) (template.HTML, error) {
-	top := system.PageTop{Title: c.Title}
-	top.Actionf(`<span id="dd-status" class="tag is-light">loading</span>`)
-	top.Actionf(`<div class="select is-small">
-      <select id="dd-range" onchange="ddLoad()">
-        <option value="3600" selected>last hour</option>
-        <option value="21600">last 6 hours</option>
-        <option value="86400">last day</option>
-        <option value="604800">last week</option>
-        <option value="2592000">last 30 days</option>
-        <option value="31536000">last year</option>
-      </select></div>`)
-
-	return h.exec("chart", struct {
-		Top          system.PageTop
-		Title        string
-		Metric       string
-		Unconfigured bool
-	}{
-		Top:          top,
-		Title:        c.Title,
-		Metric:       c.Slug,
-		Unconfigured: h.deps.PromURL() == "",
-	})
 }
 
 func (h *Host) renderOverview(r *http.Request) (template.HTML, error) {
@@ -274,116 +212,9 @@ func (w *byteWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// handleRange feeds the uPlot charts.
-func (h *Host) handleRange(w http.ResponseWriter, r *http.Request) {
-	metric := r.URL.Query().Get("metric")
-	var c *chart
-	for i := range charts {
-		if charts[i].Slug == metric {
-			c = &charts[i]
-			break
-		}
-	}
-	if c == nil {
-		http.Error(w, "unknown metric", http.StatusNotFound)
-		return
-	}
-
-	window, err := strconv.Atoi(r.URL.Query().Get("window"))
-	if err != nil || window <= 0 {
-		window = 86400
-	}
-	end := time.Now()
-	start := end.Add(-time.Duration(window) * time.Second)
-
-	// Aim for ~800 points regardless of range, so a year costs no more to
-	// draw than an hour.
-	step := time.Duration(window/800) * time.Second
-	if step < 15*time.Second {
-		step = 15 * time.Second
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-
-	type line struct {
-		name   string
-		points []promql.Point
-	}
-	var lines []line
-	for _, cs := range c.series() {
-		res, err := h.prom.QueryRange(ctx, cs.Query, start, end, step)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		// No result is not an error: the external drive may be unplugged, or
-		// its collector not installed yet. The line is simply absent.
-		for _, sr := range res {
-			name := cs.Name
-			if name == "" {
-				name = seriesName(sr.Labels, c.Title)
-			}
-			lines = append(lines, line{name: name, points: sr.Points})
-		}
-	}
-
-	// Every query shares start, end and step, so Prometheus hands back the
-	// same timestamp grid. A series with no data for part of the window is
-	// missing those points entirely though, so the lines are aligned by
-	// timestamp rather than by index.
-	at := map[int64]int{}
-	times := []int64{}
-	for _, l := range lines {
-		for _, p := range l.points {
-			t := p.T.Unix()
-			if _, ok := at[t]; !ok {
-				at[t] = 0
-				times = append(times, t)
-			}
-		}
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
-	for i, t := range times {
-		at[t] = i
-	}
-
-	out := struct {
-		Unit     string       `json:"unit"`
-		FromZero bool         `json:"fromZero"`
-		Time     []int64      `json:"time"`
-		Series   []jsonSeries `json:"series"`
-	}{Unit: c.Unit, FromZero: c.FromZero, Time: times, Series: []jsonSeries{}}
-
-	for _, l := range lines {
-		data := make([]*float64, len(times))
-		for _, p := range l.points {
-			// NaN and the infinities are legal Prometheus values and cannot be
-			// encoded as JSON numbers. A nil slot draws a gap, which is what
-			// they mean anyway.
-			if math.IsNaN(p.V) || math.IsInf(p.V, 0) {
-				continue
-			}
-			v := p.V
-			data[at[p.T.Unix()]] = &v
-		}
-		out.Series = append(out.Series, jsonSeries{Name: l.name, Data: data})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
-}
-
-// jsonSeries is one line as the chart consumes it. Data is pointers so a
-// missing sample can be null rather than a plausible looking zero.
-type jsonSeries struct {
-	Name string     `json:"name"`
-	Data []*float64 `json:"data"`
-}
-
-// seriesName picks something human out of the label set, falling back to the
-// chart title when the query aggregated all labels away.
-func seriesName(labels map[string]string, fallback string) string {
+// seriesName picks something human out of the label set. An empty result
+// leaves the chart title.
+func seriesName(labels map[string]string) string {
 	if t := labels["type"]; t != "" {
 		if n, ok := zoneNames[t]; ok {
 			return n
@@ -395,7 +226,7 @@ func seriesName(labels map[string]string, fallback string) string {
 			return v
 		}
 	}
-	return fallback
+	return ""
 }
 
 func humanDuration(d time.Duration) string {

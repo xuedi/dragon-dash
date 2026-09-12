@@ -45,3 +45,202 @@
   {{if .Title}}<strong>{{.Title}}</strong><br>{{end}}{{.Body}}
 </div>
 {{end}}
+
+{{/*
+  range-chart is a whole chart page: the infobar with the range selector, the
+  chart, and the queries behind it. chart.Set.Page builds its data and the
+  set's endpoint feeds it.
+
+  Expects: .Top .URL .Queries (.Name .Query) .Unconfigured
+*/}}
+{{define "range-chart"}}
+{{template "page-top" .Top}}
+
+{{if .Unconfigured}}
+  {{template "notice" (dict "Kind" "warning" "Title" "Prometheus is not configured"
+      "Body" "Set AD_CORE_PROMETHEUS_URL to draw this chart.")}}
+{{else}}
+  <div class="box"><div id="dd-chart"></div></div>
+
+  {{/* overflow-wrap is inline because no Bulma helper sets it, and one long
+       selector would otherwise widen the page on a phone. */}}
+  <div class="notification is-size-7 has-text-grey" style="overflow-wrap:anywhere">
+    {{range .Queries}}
+      <p>{{if .Name}}<span class="has-text-weight-semibold">{{.Name}}</span> {{end}}<span class="is-family-code">{{.Query}}</span></p>
+    {{end}}
+  </div>
+
+  <script>
+  // uPlot rather than Chart.js: a year at 60s resolution is ~525k points, and
+  // uPlot is built for that. Chart.js would crawl.
+  const ddURL = {{.URL}};
+  const ddEl = document.getElementById('dd-chart');
+  const ddHeight = 340;
+  let ddChart = null;
+  let ddWidth = 0;
+  let ddData = null;
+
+  // uPlot paints onto a canvas, so it cannot inherit the palette the way the
+  // rest of the page does. Reading Bulma's own variables keeps the axes legible
+  // in both schemes instead of drawing near-black text on a dark page.
+  function ddTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const get = (n, fallback) => cs.getPropertyValue(n).trim() || fallback;
+    return {
+      axis: get('--bulma-text-weak', '#7a7a7a'),
+      grid: get('--bulma-border-weak', '#ededed'),
+    };
+  }
+
+  // Nine entries because the Thermals chart draws nine lines: the hottest
+  // zone, six named board zones and the two SSDs.
+  const ddPalette = [
+    '#485fc7','#00d1b2','#f14668','#ffb238','#3e8ed0',
+    '#48c78e','#9b5de5','#ff7043','#8a8a8a',
+  ];
+
+  function ddLine(s, i, points) {
+    return {
+      label: s.name,
+      stroke: ddPalette[i % ddPalette.length],
+      width: 1.5,
+      // A fresh Prometheus has only a handful of samples; without markers a
+      // one-point series draws nothing at all.
+      points: { show: points <= 60 },
+    };
+  }
+
+  // The bars of one bucket stand side by side rather than stacked: one line
+  // may already contain another, as a house meter contains every plug behind
+  // it. Together they fill the middle 80% of the bucket.
+  function ddBar(s, i, n, bucket) {
+    const colour = ddPalette[i % ddPalette.length];
+    const w = 0.8 / n;
+    return {
+      label: s.name, stroke: colour, fill: colour, width: 0,
+      paths: uPlot.paths.bars({ disp: {
+        x0: { unit: 1, values: u => u.data[0].map(t => t + bucket * (w * i - 0.4)) },
+        size: { unit: 1, values: () => [bucket * w] },
+      } }),
+      points: { show: false },
+    };
+  }
+
+  // A bar's x value is the middle of its bucket, so the cursor, which snaps to
+  // the nearest one, picks the bucket under it. The legend names the bucket by
+  // its start.
+  function ddTime(bucket) {
+    if (!bucket) return {};
+    const fmt = uPlot.fmtDate(bucket < 86400 ? '{YYYY}-{MM}-{DD} {HH}:{mm}' : '{YYYY}-{MM}-{DD}');
+    return { value: (u, v) => v == null ? '' : fmt(new Date((v - bucket / 2) * 1000)) };
+  }
+
+  function ddDraw(d) {
+    ddData = d;
+    const theme = ddTheme();
+    const axis = {
+      stroke: theme.axis,
+      grid: { stroke: theme.grid, width: 1 },
+      ticks: { stroke: theme.grid, width: 1 },
+    };
+    const bucket = d.bucket || 0;
+    const xs = bucket ? d.time.map(t => t + bucket / 2) : d.time;
+    const data = [xs, ...d.series.map(s => s.data)];
+    if (ddChart) { ddChart.destroy(); }
+    ddWidth = ddEl.clientWidth || 900;
+    ddChart = new uPlot({
+      width: ddWidth, height: ddHeight,
+      scales: {
+        // From the data rather than uPlot's own min and max: with a single
+        // bar, uPlot has already widened those to about three years.
+        x: bucket
+          ? { time: true, range: () => [xs[0] - bucket / 2, xs[xs.length - 1] + bucket / 2] }
+          : { time: true },
+        // Percentages start at zero, where the distance from zero is the
+        // point. Temperatures do not: a whole board sits within a few degrees
+        // of itself, and a zero based axis would stack every line into one.
+        // Either way the range is pinned, so a single sample cannot make
+        // uPlot auto-range the axis out to several years.
+        y: { range: (u, min, max) => {
+          if (min == null || max == null) return [0, 1];
+          // A bar can be a few hundredths of a kWh, which the one unit
+          // minimum span below would flatten to nothing.
+          if (bucket) return [Math.min(0, min), max > 0 ? max * 1.1 : 1];
+          if (d.fromZero) return [Math.min(0, min), Math.max(max, min + 1)];
+          const pad = Math.max((max - min) * 0.1, 0.5);
+          return [min - pad, max + pad];
+        } },
+      },
+      series: [ddTime(bucket), ...d.series.map((s, i) => bucket
+        ? ddBar(s, i, d.series.length, bucket)
+        : ddLine(s, i, d.time.length))],
+      axes: [{ ...axis }, { ...axis, label: d.unit || '' }],
+    }, data, ddEl);
+  }
+
+  function ddLoad() {
+    const secs = document.getElementById('dd-range').value;
+    const status = document.getElementById('dd-status');
+    status.className = 'tag is-light'; status.textContent = 'loading';
+    fetch(ddURL + '&window=' + secs)
+      .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t))))
+      .then(d => {
+        if (!d.time || d.time.length === 0) {
+          status.className = 'tag is-warning'; status.textContent = 'no data';
+          return;
+        }
+        ddDraw(d);
+        const n = d.time.length;
+        const what = (d.bucket ? ' bar' : ' point') + (n === 1 ? '' : 's');
+        status.className = 'tag is-success is-light';
+        status.textContent = d.series.length > 1
+          ? d.series.length + ' series, ' + n + what
+          : n + what;
+      })
+      .catch(e => {
+        status.className = 'tag is-danger';
+        status.textContent = String(e.message || e).slice(0, 120);
+      });
+  }
+
+  // uPlot sizes its canvas once, so the chart has to be told when its column
+  // changes width.
+  //
+  // The width guard matters: resizing the canvas can itself trigger the
+  // observer, and without it the two feed each other into a loop.
+  function ddResize() {
+    if (!ddChart) return;
+    const w = ddEl.clientWidth;
+    if (!w || w === ddWidth) return;
+    ddWidth = w;
+    ddChart.setSize({ width: w, height: ddHeight });
+  }
+
+  // Two triggers on purpose. The window event covers the ordinary case and
+  // fires reliably. The observer additionally catches layout changes that move
+  // the column without moving the window, but its callbacks are only delivered
+  // while the page is actually rendering, so it is the supplement, not the
+  // mechanism.
+  window.addEventListener('resize', ddResize);
+
+  // Following the browser from light to dark mid-session needs a repaint; the
+  // canvas keeps the colours it was drawn with. The navbar toggle fires its own
+  // event, and while it is set the browser preference is not what is on screen,
+  // so that listener has nothing to repaint for.
+  const ddScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  ddScheme.addEventListener('change', () => {
+    if (ddData && !document.documentElement.dataset.theme) ddDraw(ddData);
+  });
+  window.addEventListener('dd:theme', () => { if (ddData) ddDraw(ddData); });
+  if (typeof ResizeObserver !== 'undefined') {
+    const ddObserver = new ResizeObserver(ddResize);
+    ddObserver.observe(ddEl);
+    // Keep a reference: an observer with no strong reference may be collected.
+    window.ddObserver = ddObserver;
+  }
+
+  window.addEventListener('DOMContentLoaded', ddLoad);
+  if (document.readyState !== 'loading') ddLoad();
+  </script>
+{{end}}
+{{end}}

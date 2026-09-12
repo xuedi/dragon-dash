@@ -17,7 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"armdash/internal/chart"
 	"armdash/internal/fritzbox"
+	"armdash/internal/promql"
 	"armdash/internal/system"
 )
 
@@ -32,6 +34,7 @@ type FritzHome struct {
 	tmpl    *template.Template
 	deps    system.Deps
 	cli     *fritzbox.Client
+	charts  *chart.Set
 	prefix  string
 	dataDir string
 
@@ -47,10 +50,10 @@ func (f *FritzHome) ID() string    { return "fritzhome" }
 func (f *FritzHome) Title() string { return "FritzHome" }
 
 func (f *FritzHome) Nav() []system.NavItem {
-	return []system.NavItem{
+	return append([]system.NavItem{
 		{Slug: "overview", Title: "Overview"},
 		{Slug: "floorplan", Title: "Floor plan"},
-	}
+	}, chart.Nav(charts)...)
 }
 
 func (f *FritzHome) ConfigSchema() []system.ConfigField {
@@ -82,6 +85,8 @@ func (f *FritzHome) Register(mux *http.ServeMux, prefix string, deps system.Deps
 	mux.HandleFunc("POST "+prefix+"floorplan", f.handleUpload)
 	mux.HandleFunc("GET "+prefix+"floorplan", f.handleImage)
 	mux.HandleFunc("POST "+prefix+"positions", f.handlePositions)
+	f.charts = &chart.Set{Prom: promql.New(deps.PromURL), Charts: charts, Names: f.lineNames}
+	f.charts.Register(mux, prefix)
 }
 
 func (f *FritzHome) configured() bool { return f.deps.Config.Get("password") != "" }
@@ -171,6 +176,9 @@ func (f *FritzHome) Render(slug string, r *http.Request) (template.HTML, error) 
 		return f.renderOverview(r)
 	case "floorplan":
 		return f.renderFloorplan(r)
+	}
+	if c, ok := chart.Find(charts, slug); ok {
+		return f.exec("range-chart", f.charts.Page(c, f.deps.PromURL() == ""))
 	}
 	return "", fmt.Errorf("unknown page %q", slug)
 }

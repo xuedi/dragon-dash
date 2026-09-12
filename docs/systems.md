@@ -29,8 +29,9 @@ hardcoded anywhere; neither is the settings form. Adding a system requires no ch
 the fragment in the layout, Each system owns its own templates through its own `embed.FS`, which is
 what keeps them genuinely independent.
 
-`Register` gives a system a subtree at `/s/<id>/api/` for htmx fragments and JSON. The Host
-system's chart data comes from there, FritzHome's floor plan upload goes there. The shell wraps the
+`Register` gives a system a subtree at `/s/<id>/api/` for htmx fragments and JSON. Both systems'
+chart data comes from there, served by the shared engine in `internal/chart`; FritzHome's floor plan
+upload goes there too. The shell wraps the
 whole subtree: a disabled system's endpoints answer 404, and every state-changing request needs the
 owner's session and passes Go's `http.CrossOriginProtection`, so a write endpoint is protected
 without the system doing anything. A page asks `system.CanEdit(r)` whether to draw its edit

@@ -43,14 +43,37 @@ than an hour:
 step := time.Duration(window/800) * time.Second
 ```
 
+A bar chart is the exception: it steps by its bucket, an hour or a day, on bucket boundaries, and
+its query takes the bucket as `$bucket`, as in `increase(counter[$bucket])`. Sampling an increase
+once per bucket over exactly one bucket counts every moment once.
+
 A chart is one query or several. Where a chart draws several lines they are aligned **by timestamp,
 not by index**: the queries share a start, end and step, so Prometheus returns the same grid, but a
 series with no data for part of the window is missing those points entirely. A sample with no value
 is sent to the browser as `null` and drawn as a gap, never as zero.
 
-Server metrics assume `prometheus-node-exporter`. Smart home metrics are **discovered** rather than
-hardcoded, because exact names depend on the exporter version and which devices are paired. See
-[fritzbox-metrics.md](fritzbox-metrics.md).
+Server metrics assume `prometheus-node-exporter`. Smart home metrics are armdash's own `fritz_*`
+series, published at `/metrics`; see [fritzbox-metrics.md](fritzbox-metrics.md) for why it is not a
+separate exporter.
+
+## Smart home
+
+FritzHome charts temperatures, power, energy and humidity from the series it publishes itself.
+Three rules keep those charts honest:
+
+- **Aggregate by `ain`.** Every series carries the device's `name` label, and that follows a rename
+  in the FRITZ!Box, so a raw query would fork a device's line in two at the moment it was renamed.
+  Every query is `max by (ain) (...)`, the same reason the thermal zones are aggregated by `type`.
+- **Names come from the poll, not from Prometheus.** A line is labelled with the device's current
+  name from the cached device list, so a renamed device shows its new name across its whole
+  history. A device the box no longer reports, or every device while the box cannot be reached,
+  is labelled with its AIN.
+- **A meter reporting 0 V has no power reading.** A FRITZ!Smart Energy 250 on a house meter,
+  read without the meter's PIN, gets only the energy total and reports 0 W at 0 V. Anything
+  plugged into mains sees its voltage even when switched off or idle, so 0 V means no reading, and
+  the poll publishes neither power nor voltage for it. The house then appears in Energy only. The
+  Power query also leaves out any device whose voltage was 0, which keeps readings recorded before
+  that rule off the chart.
 
 ## Temperatures
 

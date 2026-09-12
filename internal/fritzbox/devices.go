@@ -71,6 +71,10 @@ func (c *Client) Devices(ctx context.Context) ([]Device, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseDevices(body)
+}
+
+func parseDevices(body []byte) ([]Device, error) {
 	var list rawList
 	if err := xml.Unmarshal(body, &list); err != nil {
 		return nil, fmt.Errorf("parsing device list: %w", err)
@@ -91,9 +95,15 @@ func (c *Client) Devices(ctx context.Context) ([]Device, error) {
 			d.SwitchOn = &on
 		}
 		if p := r.PowerMeter; p != nil {
-			d.PowerW = scale(p.Power, 1000)     // mW  -> W
 			d.EnergyKWh = scale(p.Energy, 1000) // Wh  -> kWh
-			d.VoltageV = scale(p.Voltage, 1000) // mV  -> V
+			// Anything on mains sees its voltage, even switched off, so 0 V is
+			// no reading at all. An Energy 250 on a house meter read without the
+			// meter's PIN gets only the total and reports 0 V and 0 W; passing
+			// those on would chart the whole flat at a flat 0 W.
+			if p.Voltage == nil || *p.Voltage != 0 {
+				d.PowerW = scale(p.Power, 1000)     // mW  -> W
+				d.VoltageV = scale(p.Voltage, 1000) // mV  -> V
+			}
 		}
 		if t := r.Temperature; t != nil {
 			d.TempC = scale(t.Celsius, 10) // 0.1 C -> C

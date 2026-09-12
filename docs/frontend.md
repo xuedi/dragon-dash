@@ -28,16 +28,45 @@ A year of data at 60-second resolution is roughly 500,000 points. uPlot is built
 about 50 KB; Chart.js would struggle. Chart data is fetched as JSON from the owning system's
 `/s/<id>/api/` subtree.
 
+### One engine, every system
+
+Host and FritzHome draw their charts with the same engine, `internal/chart`, because a system may
+not reach into another. It holds what a chart is (slug, title, unit, queries, axis rule), the
+`range` endpoint that runs the queries and aligns the result, and the page builder with the range
+selector. The markup and the script are one shared component, `range-chart`, in
+`web/templates/components.html`. A system contributes only its list of charts and a naming hook:
+Host names lines after thermal zones, FritzHome after the devices in the box.
+
+Below each chart a small grey box lists the queries behind it, one per line. The infobar used to
+carry them and could not fit four; the box wraps anywhere, so a long selector cannot widen the page
+on a phone.
+
+### Lines
+
 A chart draws either one line or several. Several is not only a query returning several series, as
 the filesystem chart does with one line per mount point; a chart may also declare a list of named
 queries, which is how Thermals puts the board's zones and both SSDs on one pair of axes even though
 they live in different metrics. Two details make that readable rather than a tangle:
 
-- **The axis is not always zero based.** Percentages start at zero, where the distance from zero is
-  the point. Temperatures do not: a whole board sits within a few degrees of itself, and a zero
-  based axis would stack every line on top of every other.
+- **The axis is not always zero based.** Percentages and watts start at zero, where the distance
+  from zero is the point. Temperatures do not: a whole board sits within a few degrees of itself,
+  and a zero based axis would stack every line on top of every other.
 - **A missing sample is `null`, never zero**, so a series that starts late or drops out draws a gap.
   uPlot's legend also toggles a line on click, which is the cheap answer to a crowded chart.
+
+### Bars
+
+A lifetime counter drawn as a line is a rising ramp that says nothing. What matters is how much
+went through in each hour or day, so a chart may declare a **bucket rule** instead: per hour for
+windows up to a day, per day beyond. The engine then steps by the bucket rather than aiming for 800
+points, and the query reads the bucket length, so each bar is the increase over exactly one bucket
+and no stretch of time lands in two bars. Buckets start on the hour or at local midnight, and the
+last bar is the hour or the day so far.
+
+The bars come from uPlot's own bars path builder, already in the committed file. The bars of one
+bucket stand side by side rather than stacked: one series may contain another, as the house meter
+contains every plug behind it, and stacking would count those twice. The legend names a bucket by
+its start.
 
 ## Theming
 
@@ -88,9 +117,10 @@ Ten lines, all of them Bulma's own custom properties (`--bulma-family-primary`, 
 `--bulma-body-background-color`). There is not a single selector override, so a Bulma upgrade cannot
 silently break the layout.
 
-The link page's iframe carries its height inline, the viewport minus `--bulma-navbar-height`,
-because no Bulma class sizes an element that way. It is a single element with a single inline style,
-not a rule.
+Two elements carry an inline style because no Bulma class does what they need. The link page's
+iframe takes its height, the viewport minus `--bulma-navbar-height`. The query box under a chart
+takes `overflow-wrap: anywhere`, so an unbroken selector wraps instead of widening the page. Each is
+one element with one inline style, not a rule.
 
 Spacing comes from `section`, `container` and `columns`; emphasis comes from helper classes
 (`has-text-weight-semibold`, `has-text-link`, `is-size-7`, `has-text-grey`). If the answer to "which
