@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"dragon-dash/internal/sh3d"
+	"armdash/internal/sh3d"
 )
 
 var errUnsupported = errors.New("not a SweetHome3D file, an SVG, or a PNG, JPEG or GIF image")

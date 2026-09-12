@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"dragon-dash/internal/fritzbox"
-	"dragon-dash/internal/system"
+	"armdash/internal/fritzbox"
+	"armdash/internal/system"
 )
 
 //go:embed templates/*.html

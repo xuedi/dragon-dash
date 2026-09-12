@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"dragon-dash/internal/config"
+	"armdash/internal/config"
 )
 
 const (

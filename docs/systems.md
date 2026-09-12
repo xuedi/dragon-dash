@@ -12,7 +12,7 @@ described in [links.md](links.md).
 
 ```go
 type System interface {
-    ID() string                    // stable, URL-safe: "dragon"
+    ID() string                    // stable, URL-safe: "host"
     Title() string                 // navbar label: "Host"
     Nav() []NavItem                // left sidebar, as data
     ConfigSchema() []ConfigField   // settings page generates itself from this
@@ -40,16 +40,16 @@ controls, so a new system gets the login for free. See [authentication.md](authe
 data directory is configured. A system that writes offers nothing to change when it is empty. See
 [configuration.md](configuration.md).
 
-The ID and the title are deliberately unrelated: the Host system is still `dragon` in URLs and in
-`DD_SYSTEM_DRAGON_ENABLED`, because an ID is a stable identifier and a title is a label that can be
-reworded whenever it reads better.
+The ID and the title are deliberately separate. The ID is a stable identifier that ends up in URLs
+and in settings such as `AD_SYSTEM_HOST_ENABLED`. The title is a label, and can be reworded
+whenever it reads better without breaking either.
 
 ## Registration
 
-Systems register themselves from `init()` and are blank-imported in `cmd/dragon-dash/main.go`:
+Systems register themselves from `init()` and are blank-imported in `cmd/armdash/main.go`:
 
 ```go
-func init() { system.Register(&Dragon{}) }
+func init() { system.Register(&Host{}) }
 ```
 
 Everything compiled in is *available*; the config decides what is *shown*. A disabled system
@@ -79,16 +79,16 @@ type Collector interface {
 ```
 
 The shell then exposes it at `/metrics` in the Prometheus text format. This is what lets
-dragon-dash gather *and* display the same data without a separate exporter process: FritzHome polls
+armdash gather *and* display the same data without a separate exporter process: FritzHome polls
 the box, the page shows the live reading, and Prometheus scrapes the identical reading for history.
 
 A collector that fails does not fail the scrape. The shell emits
-`dragon_dash_collector_up{system="..."} 0` instead, so Prometheus records that the collector is
+`armdash_collector_up{system="..."} 0` instead, so Prometheus records that the collector is
 down rather than simply showing a gap.
 
 ## Adding one
 
 1. Create `internal/systems/<name>/`, implement the interface, call `system.Register` in `init()`.
-2. Blank-import the package in `cmd/dragon-dash/main.go`.
+2. Blank-import the package in `cmd/armdash/main.go`.
 
 There is no third step.

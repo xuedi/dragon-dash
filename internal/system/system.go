@@ -1,4 +1,4 @@
-// Package system defines the contract every dragon-dash feature implements.
+// Package system defines the contract every armdash feature implements.
 //
 // A "system" is one top-navbar entry, Host, FritzHome, and whatever comes
 // later. Systems are compiled into the binary and register themselves at init
@@ -19,7 +19,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"dragon-dash/web"
+	"armdash/web"
 )
 
 // NavItem is one entry in the left sidebar of a system.
@@ -41,7 +41,7 @@ const (
 
 // ConfigField describes one setting. The settings page is generated from
 // these, so a system never writes settings UI of its own. Key "metric_prefix"
-// on system "fritzhome" is read from DD_SYSTEM_FRITZHOME_METRIC_PREFIX.
+// on system "fritzhome" is read from AD_SYSTEM_FRITZHOME_METRIC_PREFIX.
 type ConfigField struct {
 	Key     string // stored as system.<id>.<key>
 	Label   string
@@ -76,7 +76,7 @@ type Deps struct {
 // System is the contract. Keep it small and serialisable-ish: if out-of-process
 // plugins ever become worth supporting, this is the seam they would go through.
 type System interface {
-	ID() string    // stable, URL-safe: "dragon"
+	ID() string    // stable, URL-safe: "host"
 	Title() string // navbar label: "Host"
 	Nav() []NavItem
 	ConfigSchema() []ConfigField
@@ -127,7 +127,7 @@ type Metric struct {
 // Collector is optional. A system that implements it also becomes a Prometheus
 // target: the shell exposes /metrics and asks every enabled collector.
 //
-// This is what lets dragon-dash both gather and display the same data without
+// This is what lets armdash both gather and display the same data without
 // a separate exporter process, while history still lives in Prometheus.
 type Collector interface {
 	Collect(ctx context.Context) ([]Metric, error)

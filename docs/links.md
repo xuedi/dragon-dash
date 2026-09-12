@@ -12,13 +12,13 @@ the env file and a restart, never a build. Links live in the shell, and no syste
 An ordered list of IDs, then a few keys per ID:
 
 ```
-DD_LINKS=wiki,grafana
+AD_LINKS=wiki,grafana
 
-DD_LINK_WIKI_TITLE=Wiki
-DD_LINK_WIKI_URL=http://127.0.0.1:8081
-DD_LINK_WIKI_MODE=proxy
+AD_LINK_WIKI_TITLE=Wiki
+AD_LINK_WIKI_URL=http://127.0.0.1:8081
+AD_LINK_WIKI_MODE=proxy
 
-DD_LINK_GRAFANA_URL=http://dragon:3000
+AD_LINK_GRAFANA_URL=http://homeserver:3000
 ```
 
 The list decides the navbar order; links follow the systems. `title` defaults to the ID and `mode`
@@ -27,8 +27,8 @@ to `frame`. IDs are lowercase letters and digits only, because the variable name
 
 Mistakes stop the process at startup instead of producing a link that quietly fails to appear: an
 ID without a URL, an invalid or repeated ID, an unknown mode, a URL that is not absolute `http` or
-`https`, and any `DD_LINK_*` variable that no listed link reads. The last one catches both a
-forgotten `DD_LINKS` entry and a misspelt field name.
+`https`, and any `AD_LINK_*` variable that no listed link reads. The last one catches both a
+forgotten `AD_LINKS` entry and a misspelt field name.
 
 **Credentials in a link URL are rejected.** A framed or opened URL is in the page source for every
 visitor, and a proxied one would sign every visitor into the upstream.
@@ -38,7 +38,7 @@ visitor, and a proxied one would sign every visitor into the upstream.
 | Mode | What the navbar entry does | The URL must be reachable from |
 |---|---|---|
 | `frame` | opens `/l/<id>/`, an iframe with the URL as its source | the browser |
-| `proxy` | opens `/l/<id>/`, an iframe with `/x/<id>/` as its source, forwarded to the URL | dragon-dash only |
+| `proxy` | opens `/l/<id>/`, an iframe with `/x/<id>/` as its source, forwarded to the URL | armdash only |
 | `tab` | opens the URL in a new tab | the browser |
 
 `frame` needs nothing from the other site, but two things can stop it:
@@ -77,8 +77,8 @@ configure:
 
 | Header | Example | Tells the upstream |
 |---|---|---|
-| `Host` | `dragon`, kept from the browser | which name to put in absolute URLs |
-| `X-Forwarded-Host` | `dragon` | the same, for apps that read this one |
+| `Host` | `homeserver`, kept from the browser | which name to put in absolute URLs |
+| `X-Forwarded-Host` | `homeserver` | the same, for apps that read this one |
 | `X-Forwarded-Proto` | `http` or `https` | whether to build `https://` links and Secure cookies |
 | `X-Forwarded-For` | the browser's address | the real client, for logs and address rules |
 | `X-Forwarded-Prefix` | `/x/wiki` | the path the site is mounted under |

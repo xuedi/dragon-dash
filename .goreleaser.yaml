@@ -5,12 +5,12 @@
 # laptop report the same version.
 version: 2
 
-project_name: dragon-dash
+project_name: armdash
 
 builds:
-  - id: dragon-dash
-    main: ./cmd/dragon-dash
-    binary: dragon-dash
+  - id: armdash
+    main: ./cmd/armdash
+    binary: armdash
     env:
       # Pure Go, no cgo, so arm64 needs no cross toolchain and the binary runs
       # on any glibc or musl system.
@@ -25,7 +25,7 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: dragon-dash
+  - id: armdash
     formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -33,13 +33,13 @@ archives:
       - README.md
       - LICENSE
       - .env.dist
-      - packaging/systemd/dragon-dash.service
+      - packaging/systemd/armdash.service
 
 nfpms:
-  - id: dragon-dash
-    package_name: dragon-dash
-    vendor: dragon-dash
-    homepage: https://github.com/xuedi/dragon-dash
+  - id: armdash
+    package_name: armdash
+    vendor: armdash
+    homepage: https://github.com/xuedi/armdash
     maintainer: Daniel Koch <xuedi@beijingcode.org>
     description: A single-binary dashboard for a home server, reading everything from Prometheus.
     license: EUPL-1.2
@@ -49,19 +49,25 @@ nfpms:
       - archlinux
     bindir: /usr/bin
     contents:
-      - src: packaging/systemd/dragon-dash.service
-        dst: /usr/lib/systemd/system/dragon-dash.service
+      - src: packaging/systemd/armdash.service
+        dst: /usr/lib/systemd/system/armdash.service
       # Seeded into /etc by the post-install, which never overwrites an existing
       # file. Shipping it straight to /etc would let an upgrade clobber the
       # credentials.
       - src: .env.dist
-        dst: /usr/share/dragon-dash/dragon-dash.env.example
+        dst: /usr/share/armdash/armdash.env.example
     scripts:
       postinstall: packaging/nfpm/postinstall.sh
     # A dashboard with no Prometheus to read shows empty charts, so name it, but
     # it may equally well live on another host.
     recommends:
       - prometheus
+    # Up to 0.11.0 the project was called dragon-dash. This package takes the
+    # old one's place rather than installing next to it.
+    replaces:
+      - dragon-dash
+    conflicts:
+      - dragon-dash
 
 checksum:
   name_template: "checksums.txt"
@@ -81,4 +87,4 @@ changelog:
 release:
   github:
     owner: xuedi
-    name: dragon-dash
+    name: armdash

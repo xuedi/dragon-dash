@@ -1,4 +1,4 @@
-# Development scrape config: the desktop, not dragon.
+# Development scrape config: the desktop, not the server.
 global:
   scrape_interval: 15s
 
@@ -8,8 +8,8 @@ scrape_configs:
     static_configs:
       - targets: ["127.0.0.1:9100"]
 
-  # dragon-dash itself, which collects the FRITZ!Box smart home data.
-  - job_name: dragon-dash
+  # armdash itself, which collects the FRITZ!Box smart home data.
+  - job_name: armdash
     static_configs:
       - targets: ["127.0.0.1:9494"]
 

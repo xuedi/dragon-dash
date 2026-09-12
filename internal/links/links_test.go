@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"dragon-dash/internal/config"
+	"armdash/internal/config"
 )
 
 func load(t *testing.T, env map[string]string) *config.Config {
@@ -29,11 +29,11 @@ var discard = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func TestParseKeepsListOrderAndDefaults(t *testing.T) {
 	ls, err := Parse(load(t, map[string]string{
-		"DD_LINKS":            "wiki, grafana",
-		"DD_LINK_WIKI_TITLE":  "Wiki",
-		"DD_LINK_WIKI_URL":    "http://127.0.0.1:8081",
-		"DD_LINK_WIKI_MODE":   "proxy",
-		"DD_LINK_GRAFANA_URL": "http://dragon:3000/",
+		"AD_LINKS":            "wiki, grafana",
+		"AD_LINK_WIKI_TITLE":  "Wiki",
+		"AD_LINK_WIKI_URL":    "http://127.0.0.1:8081",
+		"AD_LINK_WIKI_MODE":   "proxy",
+		"AD_LINK_GRAFANA_URL": "http://homeserver:3000/",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -58,16 +58,16 @@ func TestNoLinksIsNotAnError(t *testing.T) {
 
 func TestParseRejects(t *testing.T) {
 	cases := map[string]map[string]string{
-		"missing url":    {"DD_LINKS": "wiki"},
-		"hyphen in id":   {"DD_LINKS": "my-wiki", "DD_LINK_MY_WIKI_URL": "http://x"},
-		"uppercase id":   {"DD_LINKS": "Wiki", "DD_LINK_WIKI_URL": "http://x"},
-		"duplicate id":   {"DD_LINKS": "wiki,wiki", "DD_LINK_WIKI_URL": "http://x"},
-		"unknown mode":   {"DD_LINKS": "wiki", "DD_LINK_WIKI_URL": "http://x", "DD_LINK_WIKI_MODE": "iframe"},
-		"script url":     {"DD_LINKS": "wiki", "DD_LINK_WIKI_URL": "javascript:alert(1)"},
-		"relative url":   {"DD_LINKS": "wiki", "DD_LINK_WIKI_URL": "/wiki"},
-		"credentials":    {"DD_LINKS": "wiki", "DD_LINK_WIKI_URL": "http://admin:pw@127.0.0.1:8081"},
-		"unlisted link":  {"DD_LINK_WIKI_URL": "http://x"},
-		"misspelt field": {"DD_LINKS": "wiki", "DD_LINK_WIKI_URL": "http://x", "DD_LINK_WIKI_TITEL": "Wiki"},
+		"missing url":    {"AD_LINKS": "wiki"},
+		"hyphen in id":   {"AD_LINKS": "my-wiki", "AD_LINK_MY_WIKI_URL": "http://x"},
+		"uppercase id":   {"AD_LINKS": "Wiki", "AD_LINK_WIKI_URL": "http://x"},
+		"duplicate id":   {"AD_LINKS": "wiki,wiki", "AD_LINK_WIKI_URL": "http://x"},
+		"unknown mode":   {"AD_LINKS": "wiki", "AD_LINK_WIKI_URL": "http://x", "AD_LINK_WIKI_MODE": "iframe"},
+		"script url":     {"AD_LINKS": "wiki", "AD_LINK_WIKI_URL": "javascript:alert(1)"},
+		"relative url":   {"AD_LINKS": "wiki", "AD_LINK_WIKI_URL": "/wiki"},
+		"credentials":    {"AD_LINKS": "wiki", "AD_LINK_WIKI_URL": "http://admin:pw@127.0.0.1:8081"},
+		"unlisted link":  {"AD_LINK_WIKI_URL": "http://x"},
+		"misspelt field": {"AD_LINKS": "wiki", "AD_LINK_WIKI_URL": "http://x", "AD_LINK_WIKI_TITEL": "Wiki"},
 	}
 	for name, env := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -79,10 +79,10 @@ func TestParseRejects(t *testing.T) {
 }
 
 func TestSrc(t *testing.T) {
-	u, _ := url.Parse("http://dragon:3000/")
+	u, _ := url.Parse("http://homeserver:3000/")
 	framed := Link{ID: "grafana", URL: u, Mode: ModeFrame}
 	proxied := Link{ID: "wiki", URL: u, Mode: ModeProxy}
-	if got := framed.Src("ignored", "a=b"); got != "http://dragon:3000/" {
+	if got := framed.Src("ignored", "a=b"); got != "http://homeserver:3000/" {
 		t.Errorf("framed src = %q", got)
 	}
 	if got := proxied.Src("", ""); got != "/x/wiki/" {
@@ -113,7 +113,7 @@ func TestProxyTellsUpstreamTheRealURL(t *testing.T) {
 		body = string(b)
 	}, "/dokuwiki")
 
-	req := httptest.NewRequest(http.MethodPost, "http://dragon/x/wiki/doku.php?id=start", strings.NewReader("wikitext=hi"))
+	req := httptest.NewRequest(http.MethodPost, "http://homeserver/x/wiki/doku.php?id=start", strings.NewReader("wikitext=hi"))
 	req.RemoteAddr = "192.168.178.20:5555"
 	// A visitor must not be able to claim a different client or mount point.
 	req.Header.Set("X-Forwarded-For", "6.6.6.6")
@@ -128,8 +128,8 @@ func TestProxyTellsUpstreamTheRealURL(t *testing.T) {
 		"path":               {path, "/dokuwiki/doku.php"},
 		"query":              {query, "id=start"},
 		"body":               {body, "wikitext=hi"},
-		"Host":               {host, "dragon"},
-		"X-Forwarded-Host":   {hdr.Get("X-Forwarded-Host"), "dragon"},
+		"Host":               {host, "homeserver"},
+		"X-Forwarded-Host":   {hdr.Get("X-Forwarded-Host"), "homeserver"},
 		"X-Forwarded-Proto":  {hdr.Get("X-Forwarded-Proto"), "http"},
 		"X-Forwarded-For":    {hdr.Get("X-Forwarded-For"), "192.168.178.20"},
 		"X-Forwarded-Prefix": {hdr.Get("X-Forwarded-Prefix"), "/x/wiki"},
@@ -143,7 +143,7 @@ func TestProxyTellsUpstreamTheRealURL(t *testing.T) {
 func TestProxyReportsHTTPSWhenServedOverTLS(t *testing.T) {
 	var proto string
 	l := proxyTo(t, func(w http.ResponseWriter, r *http.Request) { proto = r.Header.Get("X-Forwarded-Proto") }, "")
-	req := httptest.NewRequest(http.MethodGet, "https://dragon/x/wiki/", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://homeserver/x/wiki/", nil)
 	req.TLS = &tls.ConnectionState{}
 	l.Handler(discard).ServeHTTP(httptest.NewRecorder(), req)
 	if proto != "https" {
@@ -157,7 +157,7 @@ func TestProxyRewritesUpstreamRedirect(t *testing.T) {
 		http.Redirect(w, r, l.URL.String()+"/doku.php?id=saved", http.StatusSeeOther)
 	}, "")
 	rec := httptest.NewRecorder()
-	l.Handler(discard).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "http://dragon/x/wiki/doku.php", nil))
+	l.Handler(discard).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "http://homeserver/x/wiki/doku.php", nil))
 	if got := rec.Header().Get("Location"); got != "/x/wiki/doku.php?id=saved" {
 		t.Errorf("Location = %q, want it under /x/wiki", got)
 	}
@@ -173,7 +173,7 @@ func TestRewriteLocation(t *testing.T) {
 		{"http://127.0.0.1:8081/dokuwiki", "http://127.0.0.1:8081/dokuwiki", "/x/wiki/"},
 		{"http://127.0.0.1:8081/dokuwiki", "http://127.0.0.1:8081/dokuwikis/x", ""},
 		{"http://127.0.0.1:8081", "https://127.0.0.1:8081/doku.php", ""},
-		{"http://127.0.0.1:8081", "http://dragon/x/wiki/doku.php", ""},
+		{"http://127.0.0.1:8081", "http://homeserver/x/wiki/doku.php", ""},
 		{"http://127.0.0.1:8081", "/x/wiki/doku.php", ""},
 		{"http://127.0.0.1:8081", "", ""},
 	}
@@ -191,7 +191,7 @@ func TestProxyAnswersBadGatewayWhenUpstreamIsDown(t *testing.T) {
 	up.Close()
 	l := Link{ID: "wiki", Title: "Wiki", URL: u, Mode: ModeProxy}
 	rec := httptest.NewRecorder()
-	l.Handler(discard).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://dragon/x/wiki/", nil))
+	l.Handler(discard).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://homeserver/x/wiki/", nil))
 	if rec.Code != http.StatusBadGateway {
 		t.Errorf("status = %d, want 502", rec.Code)
 	}

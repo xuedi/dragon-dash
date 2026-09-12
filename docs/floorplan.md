@@ -9,8 +9,8 @@ placed by dragging them on the page.
 Three sources, and the first one present wins:
 
 1. a drawing or a picture **uploaded on the page**, kept in the data directory
-2. `DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE`, a SweetHome3D `.sh3d` file or a JSON plan
-3. `DD_SYSTEM_FRITZHOME_FLOORPLAN`, a JSON plan inline
+2. `AD_SYSTEM_FRITZHOME_FLOORPLAN_FILE`, a SweetHome3D `.sh3d` file or a JSON plan
+3. `AD_SYSTEM_FRITZHOME_FLOORPLAN`, a JSON plan inline
 
 The info bar says which one is in use, so an upload silently shadowing the configured file is never
 a mystery. The format is picked by **content, not extension**: a file starting with the ZIP
@@ -133,8 +133,8 @@ never be dragged back.
 ## Who can change it
 
 Configuration stays read-only, see [configuration.md](configuration.md). The drawing and the device
-positions are data, kept in the system's own data directory: `DD_CORE_DATA_DIR/fritzhome`, or
-`/var/lib/dragon-dash/fritzhome` under the packaged unit, whose `StateDirectory=` provides it. With no
+positions are data, kept in the system's own data directory: `AD_CORE_DATA_DIR/fritzhome`, or
+`/var/lib/armdash/fritzhome` under the packaged unit, whose `StateDirectory=` provides it. With no
 data directory the page offers neither button and both endpoints answer 404.
 
 Anyone who can open the dashboard sees the plan; only the logged-in owner can replace it or move

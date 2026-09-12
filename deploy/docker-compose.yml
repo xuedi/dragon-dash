@@ -1,25 +1,25 @@
-# Deploy target: dragon:/var/docker/dragon-dash/
+# A Compose stack for hosts where containers are preferred over the packages.
+# The settings go in a .env next to this file, see ../.env.dist.
 #
-# Not in use yet, development happens on the desktop (see ../README.md).
-# There is no FRITZ!Box exporter here: dragon-dash polls the box itself and
+# There is no FRITZ!Box exporter here: armdash polls the box itself and
 # publishes /metrics, so the credentials live in exactly one place.
-name: dragon-dash
+name: armdash
 
 services:
-  dragon-dash:
+  armdash:
     build:
       context: ..
       dockerfile: Dockerfile
-    container_name: dragon-dash
+    container_name: armdash
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      DD_CORE_PROMETHEUS_URL: http://prometheus:9090
-      DD_CORE_DATA_DIR: /var/lib/dragon-dash
+      AD_CORE_PROMETHEUS_URL: http://prometheus:9090
+      AD_CORE_DATA_DIR: /var/lib/armdash
     volumes:
       # Uploaded floor plans and device positions.
-      - ./data/dragon-dash:/var/lib/dragon-dash
+      - ./data/armdash:/var/lib/armdash
     ports:
       # Port 80 is a mapping, not a privilege: the process listens on 8080
       # inside the container and never needs root or CAP_NET_BIND_SERVICE.
@@ -31,7 +31,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.14.0
-    container_name: dragon-dash-prometheus
+    container_name: armdash-prometheus
     restart: unless-stopped
     user: "65534:65534"
     command:
@@ -47,14 +47,14 @@ services:
       - ./data/prometheus:/prometheus
     ports:
       # Loopback only, the admin API is enabled.
-      #   ssh -N -L 9090:127.0.0.1:9090 dragon
+      #   ssh -N -L 9090:127.0.0.1:9090 homeserver
       - "127.0.0.1:9090:9090"
     networks:
       - dash
 
   node-exporter:
     image: prom/node-exporter:v1.9.1
-    container_name: dragon-dash-node-exporter
+    container_name: armdash-node-exporter
     restart: unless-stopped
     pid: host
     command:

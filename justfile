@@ -1,6 +1,6 @@
-# dragon-dash - development runs on the desktop, dragon is the deployment target.
+# armdash - development runs on the desktop, a server only gets the built binary.
 
-app := "dragon-dash"
+app := "armdash"
 
 default:
     @just --list
@@ -16,7 +16,7 @@ run-lan:
 build:
     go build -trimpath -ldflags="-s -w" -o bin/{{app}} ./cmd/{{app}}
 
-# The binary that goes to dragon. No cgo, so no cross toolchain needed.
+# The binary for an arm64 server. No cgo, so no cross toolchain needed.
 build-arm:
     CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
       go build -trimpath -ldflags="-s -w" -o bin/{{app}}-arm64 ./cmd/{{app}}
@@ -26,7 +26,7 @@ check:
     go vet ./...
     go test ./...
 
-# Prometheus + node_exporter on the desktop, so the Dragon pages have real data
+# Prometheus + node_exporter on the desktop, so the Host pages have real data
 # while developing. Point Settings at http://127.0.0.1:9090
 dev-up:
     docker compose -f deploy/docker-compose.dev.yml up -d
@@ -34,12 +34,12 @@ dev-up:
 dev-down:
     docker compose -f deploy/docker-compose.dev.yml down
 
-# Copy the arm64 binary to dragon (does not install or start anything)
-push-arm: build-arm
-    scp bin/{{app}}-arm64 dragon:/tmp/{{app}}
+# Copy the arm64 binary to a server, `just push-arm homeserver` (installs and starts nothing)
+push-arm host: build-arm
+    scp bin/{{app}}-arm64 {{host}}:/tmp/{{app}}
 
 # Install from source on this machine the way the packages do: the binary in
-# /usr/local/bin, the service user, a seeded /etc/dragon-dash/dragon-dash.env
+# /usr/local/bin, the service user, a seeded /etc/armdash/armdash.env
 # and the hardened unit, left disabled.
 install: build
     #!/usr/bin/env bash
@@ -54,7 +54,7 @@ install: build
     sudo install -Dm755 bin/{{app}} "$bin"
     getent group {{app}} >/dev/null 2>&1 || sudo groupadd --system {{app}}
     getent passwd {{app}} >/dev/null 2>&1 || sudo useradd --system --gid {{app}} --home-dir / \
-        --no-create-home --shell "$nologin" --comment "dragon-dash dashboard" {{app}}
+        --no-create-home --shell "$nologin" --comment "armdash dashboard" {{app}}
     sudo install -d -m 0750 -o root -g {{app}} /etc/{{app}}
     [ -f "$conf" ] || sudo install -m 0640 -o root -g {{app}} .env.dist "$conf"
     sed "s#^ExecStart=/usr/bin/{{app}}#ExecStart=$bin#" packaging/systemd/{{app}}.service | sudo tee "$unit" >/dev/null

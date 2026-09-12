@@ -6,7 +6,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.PageTitle}} · dragon-dash</title>
+<title>{{.PageTitle}} · armdash</title>
 <link rel="stylesheet" href="/static/bulma.min.css">
 <link rel="stylesheet" href="/static/uPlot.min.css">
 <script src="/static/htmx.min.js" defer></script>
@@ -32,7 +32,7 @@
 <nav class="navbar has-shadow" role="navigation" aria-label="main navigation">
   <div class="container">
     <div class="navbar-brand">
-      <a class="navbar-item has-text-weight-bold" href="/">dragon-dash</a>
+      <a class="navbar-item has-text-weight-bold" href="/">armdash</a>
     </div>
     <div class="navbar-menu is-active">
       <div class="navbar-start">
@@ -86,7 +86,7 @@
         return;
       }
       history.replaceState(null, '', to + loc.pathname.slice(from.length) + loc.search + loc.hash);
-      document.title = (inner ? inner + ' · ' : '') + title + ' · dragon-dash';
+      document.title = (inner ? inner + ' · ' : '') + title + ' · armdash';
     });
   })();
 </script>
@@ -105,7 +105,7 @@
             {{end}}
           </ul>
           <p class="menu-label">Build</p>
-          <p class="has-text-grey px-3 is-size-7">dragon-dash v{{.Version}}</p>
+          <p class="has-text-grey px-3 is-size-7">armdash v{{.Version}}</p>
         </aside>
       </div>
       {{end}}

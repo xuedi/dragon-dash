@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"dragon-dash/internal/system"
+	"armdash/internal/system"
 )
 
 // handleMetrics renders the Prometheus text exposition format for every
@@ -32,14 +32,14 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 			// simply having a gap.
 			s.log.Error("collect failed", "system", sys.ID(), "err", err)
 			all = append(all, system.Metric{
-				Name: "dragon_dash_collector_up", Type: "gauge",
+				Name: "armdash_collector_up", Type: "gauge",
 				Help:   "1 when the system's last collection succeeded",
 				Labels: map[string]string{"system": sys.ID()}, Value: 0,
 			})
 			continue
 		}
 		all = append(all, system.Metric{
-			Name: "dragon_dash_collector_up", Type: "gauge",
+			Name: "armdash_collector_up", Type: "gauge",
 			Help:   "1 when the system's last collection succeeded",
 			Labels: map[string]string{"system": sys.ID()}, Value: 1,
 		})

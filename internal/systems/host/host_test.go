@@ -1,4 +1,4 @@
-package dragon
+package host
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"dragon-dash/internal/promql"
+	"armdash/internal/promql"
 )
 
 // fakeProm answers query_range from a table keyed by a substring of the query,
@@ -42,7 +42,7 @@ type rangeResponse struct {
 
 func getRange(t *testing.T, srv *httptest.Server, metric string) rangeResponse {
 	t.Helper()
-	d := &Dragon{prom: promql.New(func() string { return srv.URL })}
+	d := &Host{prom: promql.New(func() string { return srv.URL })}
 	rec := httptest.NewRecorder()
 	d.handleRange(rec, httptest.NewRequest(http.MethodGet, "/range?metric="+metric+"&window=3600", nil))
 	if rec.Code != http.StatusOK {

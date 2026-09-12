@@ -1,9 +1,9 @@
 # Prometheus
 
-Server metrics come from Prometheus. dragon-dash reads `/proc` for nothing and stores no samples of
+Server metrics come from Prometheus. armdash reads `/proc` for nothing and stores no samples of
 its own.
 
-Smart home data is the exception in one direction only: dragon-dash polls the FRITZ!Box itself and
+Smart home data is the exception in one direction only: armdash polls the FRITZ!Box itself and
 publishes the result at `/metrics`, which Prometheus scrapes. The live page shows the poll directly;
 the charts read the same numbers back out of Prometheus.
 
@@ -89,7 +89,7 @@ admin commands through the bridge:
 smartctl -d sntasmedia -A /dev/sda
 ```
 
-**dragon-dash does not run that itself.** It runs as a hardened non-root service and the command
+**armdash does not run that itself.** It runs as a hardened non-root service and the command
 needs root, so reading SMART here would mean granting the dashboard a privilege it lives without
 today. The FRITZ!Box is not a precedent: that is an HTTP poll of a network device, not a privileged
 local syscall.

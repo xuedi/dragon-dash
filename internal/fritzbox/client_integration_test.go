@@ -12,9 +12,9 @@ import (
 //
 //	set -a; . ./.env.local; set +a; go test ./internal/fritzbox/ -run RealBox -v
 func TestAgainstRealBox(t *testing.T) {
-	url := os.Getenv("DD_SYSTEM_FRITZHOME_URL")
-	user := os.Getenv("DD_SYSTEM_FRITZHOME_USERNAME")
-	pass := os.Getenv("DD_SYSTEM_FRITZHOME_PASSWORD")
+	url := os.Getenv("AD_SYSTEM_FRITZHOME_URL")
+	user := os.Getenv("AD_SYSTEM_FRITZHOME_USERNAME")
+	pass := os.Getenv("AD_SYSTEM_FRITZHOME_PASSWORD")
 	if url == "" || pass == "" {
 		t.Skip("no FRITZ!Box credentials in the environment")
 	}

@@ -1,4 +1,4 @@
-# dragon-dash architecture
+# armdash architecture
 
 One file per logical chunk of the application. These describe **how it works**, not what the code
 says, read the relevant one before working in that area.

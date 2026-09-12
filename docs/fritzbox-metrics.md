@@ -1,4 +1,4 @@
-# dragon-dash, long-term FRITZ!Box smart home metrics
+# armdash, long-term FRITZ!Box smart home metrics
 
 **Status: stack written, nothing deployed.** Researched and scaffolded 2026-09-08.
 Docker is **not yet installed on the server**.
@@ -149,7 +149,7 @@ paru -S docker docker-compose
 sudo systemctl enable --now docker
 sudo usermod -aG docker <user>     # log out and back in
 
-# copy this directory to dragon:/var/docker/dragon-dash/, then:
+# copy this directory to homeserver:/var/docker/armdash/, then:
 cp .env.example .env && $EDITOR .env      # FRITZ!Box user + password
 mkdir -p data/prometheus
 sudo chown -R 65534:65534 data/prometheus # prometheus runs as nobody

@@ -5,7 +5,7 @@
 # build output
 /bin/
 /dist/
-/dragon-dash
+/armdash
 
 # runtime state, config.json holds credentials, never commit it
 /config.json

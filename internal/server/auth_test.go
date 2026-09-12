@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"dragon-dash/internal/auth"
-	"dragon-dash/internal/config"
-	"dragon-dash/internal/system"
+	"armdash/internal/auth"
+	"armdash/internal/config"
+	"armdash/internal/system"
 )
 
 // One derivation costs a noticeable fraction of a second, so the tests share
@@ -29,8 +29,8 @@ var testHash = sync.OnceValue(func() string {
 
 func newAuthServer(t *testing.T) *Server {
 	t.Helper()
-	t.Setenv("DD_CORE_AUTH_USER", "owner")
-	t.Setenv("DD_CORE_AUTH_PASSWORD_HASH", testHash())
+	t.Setenv("AD_CORE_AUTH_USER", "owner")
+	t.Setenv("AD_CORE_AUTH_PASSWORD_HASH", testHash())
 	return newTestServer(t)
 }
 
@@ -146,7 +146,7 @@ func TestReturnPathStaysLocal(t *testing.T) {
 	for next, want := range map[string]string{
 		"/settings":                "/settings",
 		"/s/fritzhome/floorplan":   "/s/fritzhome/floorplan",
-		"/s/dragon/cpu?range=7d":   "/s/dragon/cpu?range=7d",
+		"/s/host/cpu?range=7d":     "/s/host/cpu?range=7d",
 		"":                         "/",
 		"settings":                 "/",
 		"//evil.example/":          "/",
@@ -188,8 +188,8 @@ func TestWritesNeedALogin(t *testing.T) {
 		t.Errorf("htmx got %q, want the notice for its message area", rec.Body.String())
 	}
 
-	t.Setenv("DD_CORE_AUTH_USER", "")
-	t.Setenv("DD_CORE_AUTH_PASSWORD_HASH", "")
+	t.Setenv("AD_CORE_AUTH_USER", "")
+	t.Setenv("AD_CORE_AUTH_PASSWORD_HASH", "")
 	open := newTestServer(t).api("fritzhome", ok)
 	if rec := serveAPI(open, system.AllowEdit(post())); rec.Code != http.StatusForbidden {
 		t.Errorf("POST with no login configured = %d, want 403", rec.Code)
@@ -204,7 +204,7 @@ func TestSettingsNeedALoginOnceOneIsConfigured(t *testing.T) {
 	}
 	c := sessionFrom(t, do(s, loginRequest("owner", "correct horse", "/")))
 	body := do(s, httptest.NewRequest(http.MethodGet, "/settings", nil), c).Body.String()
-	if !strings.Contains(body, "DD_CORE_AUTH_USER") || !strings.Contains(body, "owner") || !strings.Contains(body, redacted) {
+	if !strings.Contains(body, "AD_CORE_AUTH_USER") || !strings.Contains(body, "owner") || !strings.Contains(body, redacted) {
 		t.Error("settings do not show the login")
 	}
 	if strings.Contains(body, testHash()) || strings.Contains(body, strings.Split(testHash(), ":")[3]) {
@@ -214,8 +214,8 @@ func TestSettingsNeedALoginOnceOneIsConfigured(t *testing.T) {
 		t.Errorf("/metrics = %d, Prometheus has no login", rec.Code)
 	}
 
-	t.Setenv("DD_CORE_AUTH_USER", "")
-	t.Setenv("DD_CORE_AUTH_PASSWORD_HASH", "")
+	t.Setenv("AD_CORE_AUTH_USER", "")
+	t.Setenv("AD_CORE_AUTH_PASSWORD_HASH", "")
 	if rec := do(newTestServer(t), httptest.NewRequest(http.MethodGet, "/settings", nil)); rec.Code != http.StatusOK {
 		t.Errorf("settings with no login configured = %d, want them open as before", rec.Code)
 	}
@@ -244,8 +244,8 @@ func TestLoginConfigMustBeComplete(t *testing.T) {
 		"damaged":   {"owner", "pbkdf2-sha256:600000:abc:def"},
 		"bcrypt":    {"owner", "$2a$10$abcdefghijklmnopqrstuv"},
 	} {
-		t.Setenv("DD_CORE_AUTH_USER", c.user)
-		t.Setenv("DD_CORE_AUTH_PASSWORD_HASH", c.hash)
+		t.Setenv("AD_CORE_AUTH_USER", c.user)
+		t.Setenv("AD_CORE_AUTH_PASSWORD_HASH", c.hash)
 		cfg, err := config.Load()
 		if err != nil {
 			t.Fatal(err)

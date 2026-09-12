@@ -6,7 +6,7 @@ global:
   scrape_interval: 60s
   scrape_timeout: 30s
   external_labels:
-    host: dragon
+    host: homeserver
 
 scrape_configs:
   # The board itself: CPU, memory, filesystems, hwmon temperatures.
@@ -14,10 +14,10 @@ scrape_configs:
     static_configs:
       - targets: ["node-exporter:9100"]
 
-  # dragon-dash, which polls the FRITZ!Box and republishes it.
-  - job_name: dragon-dash
+  # armdash, which polls the FRITZ!Box and republishes it.
+  - job_name: armdash
     static_configs:
-      - targets: ["dragon-dash:8080"]
+      - targets: ["armdash:8080"]
 
   - job_name: prometheus
     static_configs:

@@ -19,7 +19,7 @@ The running binary reports it in two ways, which is what makes a deployed build 
 without checksums:
 
 ```
-dragon-dash -version
+armdash -version
 ```
 
 and the navbar sidebar, under the Build label.
@@ -57,10 +57,10 @@ the way to check a packaging change before tagging. It needs `goreleaser` on `PA
 
 | Artifact | For |
 |---|---|
-| `dragon-dash_<version>_linux_arm64.tar.gz` | the binary, README, licence, `.env.dist`, the unit file |
-| `dragon-dash_<version>_linux_amd64.tar.gz` | same, for an x86 host |
-| `dragon-dash-<version>-*.pkg.tar.zst` | Arch and Arch ARM |
-| `dragon-dash_<version>_*.deb` / `.rpm` | Debian, Ubuntu, Fedora |
+| `armdash_<version>_linux_arm64.tar.gz` | the binary, README, licence, `.env.dist`, the unit file |
+| `armdash_<version>_linux_amd64.tar.gz` | same, for an x86 host |
+| `armdash_<version>_*.pkg.tar.zst` | Arch and Arch ARM |
+| `armdash_<version>_*.deb` / `.rpm` | Debian, Ubuntu, Fedora |
 | `checksums.txt` | verifying any of the above |
 
 The binary is static and pure Go, so the target needs no toolchain, no runtime and no shared
@@ -69,17 +69,17 @@ library beyond what a bare system already has.
 ## What the packages install
 
 ```
-/usr/bin/dragon-dash                          the binary
-/usr/lib/systemd/system/dragon-dash.service   the unit, shipped disabled
-/usr/share/dragon-dash/dragon-dash.env.example the seed configuration
-/etc/dragon-dash/dragon-dash.env              0640 root:dragon-dash, seeded on first install
-/var/lib/dragon-dash/                         0700 dragon-dash, created by systemd on start
+/usr/bin/armdash                          the binary
+/usr/lib/systemd/system/armdash.service   the unit, shipped disabled
+/usr/share/armdash/armdash.env.example    the seed configuration
+/etc/armdash/armdash.env                  0640 root:armdash, seeded on first install
+/var/lib/armdash/                         0700 armdash, created by systemd on start
 ```
 
-The post-install creates the `dragon-dash` system user, seeds the configuration only when there is
+The post-install creates the `armdash` system user, seeds the configuration only when there is
 not one already (an upgrade must never drop credentials) and leaves the unit disabled, because a
 dashboard with no FRITZ!Box credentials and no Prometheus address is not worth starting. Its next
-steps include `dragon-dash passwd`, which prints the owner login for the env file, see
+steps include `armdash passwd`, which prints the owner login for the env file, see
 [authentication.md](authentication.md). Without it the dashboard runs, but nothing can be changed.
 
 `just install` does the same from a checkout on the machine itself: it builds, installs the binary
@@ -88,7 +88,7 @@ with its `ExecStart` pointed there, disabled. It needs sudo.
 
 The unit is hardened further than most, and can be, because **the app writes almost nothing**.
 Configuration is read-only by design and every metric lives in Prometheus. The one writable path is
-`/var/lib/dragon-dash`, from `StateDirectory=`, where an uploaded floor plan and device positions
+`/var/lib/armdash`, from `StateDirectory=`, where an uploaded floor plan and device positions
 are kept (see [floorplan.md](floorplan.md)). `ProtectSystem=strict` keeps everything else read-only.
 The one capability granted is `CAP_NET_BIND_SERVICE`, which is what lets an unprivileged process
 answer on ports 80 and 443.
@@ -98,12 +98,12 @@ does not, and until the unit is updated (and `systemctl daemon-reload` run) the 
 simply offers no upload and no edit mode.
 
 The login arrived in 0.11.0. An upgrade from an earlier version keeps every page, but loses Upload
-and Edit until `DD_CORE_AUTH_USER` and `DD_CORE_AUTH_PASSWORD_HASH` are in the env file.
+and Edit until `AD_CORE_AUTH_USER` and `AD_CORE_AUTH_PASSWORD_HASH` are in the env file.
 
 ## Configuration on a server
 
-Everything is in `/etc/dragon-dash/dragon-dash.env`, in the same `DD_` variables the development
-`.env.local` uses. `DD_CORE_ADDR` decides the port, so moving the dashboard to another port is an
+Everything is in `/etc/armdash/armdash.env`, in the same `AD_` variables the development
+`.env.local` uses. `AD_CORE_ADDR` decides the port, so moving the dashboard to another port is an
 edit and a restart, not a rebuild. See [configuration.md](configuration.md).
 
 The committed defaults stay on high loopback ports, `127.0.0.1:9494` and `127.0.0.1:9495` for
@@ -112,14 +112,14 @@ HTTPS, so a development checkout never collides with anything else on the machin
 
 ## HTTPS
 
-dragon-dash terminates TLS itself, there is no proxy to run. Set both paths and it serves the
-dashboard on `DD_CORE_TLS_ADDR` as well:
+armdash terminates TLS itself, there is no proxy to run. Set both paths and it serves the
+dashboard on `AD_CORE_TLS_ADDR` as well:
 
 ```ini
-DD_CORE_ADDR=:80
-DD_CORE_TLS_ADDR=:443
-DD_CORE_TLS_CERT=/etc/dragon-dash/tls/dragon-dash.crt
-DD_CORE_TLS_KEY=/etc/dragon-dash/tls/dragon-dash.key
+AD_CORE_ADDR=:80
+AD_CORE_TLS_ADDR=:443
+AD_CORE_TLS_CERT=/etc/armdash/tls/armdash.crt
+AD_CORE_TLS_KEY=/etc/armdash/tls/armdash.key
 ```
 
 With TLS on, the plain listener keeps running but redirects every request to HTTPS, **except
@@ -135,9 +135,9 @@ would lock out any device without the CA, and every other plain-HTTP service on 
 The service user reads the pair, nobody else reads the key:
 
 ```
-/etc/dragon-dash/tls/                 0750 root:dragon-dash
-/etc/dragon-dash/tls/dragon-dash.crt  0644 root:dragon-dash
-/etc/dragon-dash/tls/dragon-dash.key  0640 root:dragon-dash
+/etc/armdash/tls/              0750 root:armdash
+/etc/armdash/tls/armdash.crt   0644 root:armdash
+/etc/armdash/tls/armdash.key   0640 root:armdash
 ```
 
 The pair is read once at startup, like the rest of the configuration, so a renewed certificate
@@ -147,18 +147,18 @@ shows which certificate and key are in use.
 
 ## The other half: Prometheus
 
-dragon-dash reads everything from Prometheus and stores nothing itself, so a deployment is really
+armdash reads everything from Prometheus and stores nothing itself, so a deployment is really
 three services:
 
 ```mermaid
 flowchart LR
     NE[node-exporter :9100] -->|scrape| P[(Prometheus :9090)]
-    DD[dragon-dash /metrics] -->|scrape| P
+    DD[armdash /metrics] -->|scrape| P
     FB[FRITZ!Box AHA API] -->|poll| DD
-    P -->|query| DD2[dragon-dash pages :80 / :443]
+    P -->|query| DD2[armdash pages :80 / :443]
 ```
 
-dragon-dash appears twice on purpose. It polls the FRITZ!Box and republishes what it finds on
+armdash appears twice on purpose. It polls the FRITZ!Box and republishes what it finds on
 `/metrics` for Prometheus to scrape, and it queries Prometheus to draw the pages. That is why the
 FRITZ!Box credentials exist in exactly one place and there is no separate exporter to keep alive.
 
@@ -175,7 +175,7 @@ Two Prometheus flags matter:
 
 ### Storage
 
-Measured on a deployed instance, not estimated: node_exporter, dragon-dash and Prometheus itself
+Measured on a deployed instance, not estimated: node_exporter, armdash and Prometheus itself
 come to **1663 active series** together on a small board, of which node_exporter is 834 and the
 FRITZ!Box data 45. At a 60 s scrape that is ~28 samples/s, and Prometheus compresses to roughly
 1.7 bytes/sample:
@@ -188,3 +188,32 @@ A decade fits in under 20 GB. Any modern root filesystem holds that, so the TSDB
 dedicated data disk, and putting it on one is a preference rather than a requirement. A bigger host
 reports more series (a desktop's node_exporter alone reports about 1100), but the order of magnitude
 does not change.
+
+## Renamed from dragon-dash
+
+Up to 0.11.0 the project was called dragon-dash. 0.12.0 renamed everything that carried the old
+name:
+
+| Up to 0.11.0 | From 0.12.0 |
+|---|---|
+| package, binary, unit, system user `dragon-dash` | `armdash` |
+| `/etc/dragon-dash/dragon-dash.env` | `/etc/armdash/armdash.env` |
+| `/etc/dragon-dash/tls/dragon-dash.crt` and `.key` | `/etc/armdash/tls/armdash.crt` and `.key` |
+| `/var/lib/dragon-dash/` | `/var/lib/armdash/` |
+| every `DD_` setting | the same name with `AD_` |
+| `DD_SYSTEM_DRAGON_*`, pages under `/s/dragon/` | `AD_SYSTEM_HOST_*`, pages under `/s/host/` |
+| metric `dragon_dash_collector_up` | `armdash_collector_up` |
+
+The armdash packages replace and conflict with dragon-dash, so installing one removes the other.
+Nothing is migrated automatically and the old `DD_` names are not read any more, so an existing
+install moves once, by hand:
+
+1. Stop and disable `dragon-dash`.
+2. Copy the env file to `/etc/armdash/armdash.env` **before** installing, so the post-install keeps
+   it rather than seeding a fresh one. Rename every key from `DD_` to `AD_`, `DD_SYSTEM_DRAGON_` to
+   `AD_SYSTEM_HOST_`, and point the TLS paths at their new place.
+3. Move the certificate and key to `/etc/armdash/tls/`, and `/var/lib/dragon-dash` to
+   `/var/lib/armdash`. systemd hands the state directory to the new user on the first start.
+4. Install the package and `systemctl enable --now armdash`.
+5. Update whatever refers to the old names on the Prometheus side (a scrape job named after the
+   service, a query on the collector metric), then remove the `dragon-dash` user and group.

@@ -1,6 +1,6 @@
 // Package promql is a minimal client for the Prometheus HTTP query API.
 //
-// dragon-dash reads every metric from Prometheus rather than from the machine
+// armdash reads every metric from Prometheus rather than from the machine
 // directly. That costs a dependency but buys history and filtering for free,
 // and keeps the dashboard stateless: it stores no samples of its own.
 package promql

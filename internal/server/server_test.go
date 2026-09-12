@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"dragon-dash/internal/config"
-	"dragon-dash/internal/system"
+	"armdash/internal/config"
+	"armdash/internal/system"
 )
 
 // The cookie is client controlled and its value lands in an attribute on the
@@ -69,9 +69,9 @@ func TestPlainHandlerRedirectsToHTTPS(t *testing.T) {
 	cases := []struct {
 		tlsAddr, url, want string
 	}{
-		{":443", "http://dragon/", "https://dragon/"},
-		{":443", "http://dragon:80/settings", "https://dragon/settings"},
-		{":443", "http://dragon/s/dragon/overview?range=7d", "https://dragon/s/dragon/overview?range=7d"},
+		{":443", "http://homeserver/", "https://homeserver/"},
+		{":443", "http://homeserver:80/settings", "https://homeserver/settings"},
+		{":443", "http://homeserver/s/host/overview?range=7d", "https://homeserver/s/host/overview?range=7d"},
 		{"127.0.0.1:9495", "http://127.0.0.1:9494/", "https://127.0.0.1:9495/"},
 		{":443", "http://[::1]/", "https://[::1]/"},
 		{"[::1]:9495", "http://[::1]:9494/x", "https://[::1]:9495/x"},
@@ -97,13 +97,13 @@ func TestPlainHandlerRedirectsToHTTPS(t *testing.T) {
 func setLinks(t *testing.T) {
 	t.Helper()
 	for k, v := range map[string]string{
-		"DD_LINKS":            "wiki,grafana,fritz",
-		"DD_LINK_WIKI_TITLE":  "Wiki",
-		"DD_LINK_WIKI_URL":    "http://127.0.0.1:1",
-		"DD_LINK_WIKI_MODE":   "proxy",
-		"DD_LINK_GRAFANA_URL": "http://dragon:3000/",
-		"DD_LINK_FRITZ_URL":   "http://fritz.box/",
-		"DD_LINK_FRITZ_MODE":  "tab",
+		"AD_LINKS":            "wiki,grafana,fritz",
+		"AD_LINK_WIKI_TITLE":  "Wiki",
+		"AD_LINK_WIKI_URL":    "http://127.0.0.1:1",
+		"AD_LINK_WIKI_MODE":   "proxy",
+		"AD_LINK_GRAFANA_URL": "http://homeserver:3000/",
+		"AD_LINK_FRITZ_URL":   "http://fritz.box/",
+		"AD_LINK_FRITZ_MODE":  "tab",
 	} {
 		t.Setenv(k, v)
 	}
@@ -129,7 +129,7 @@ func TestLinksAppearInNavbarInOrder(t *testing.T) {
 			t.Fatalf("navbar is missing %s", want)
 		}
 		if i < last {
-			t.Errorf("%s is out of DD_LINKS order", want)
+			t.Errorf("%s is out of AD_LINKS order", want)
 		}
 		last = i
 	}
@@ -146,7 +146,7 @@ func TestLinkPages(t *testing.T) {
 		{"/l/wiki/", http.StatusOK, `src="/x/wiki/"`},
 		{"/l/wiki/doku.php?id=start", http.StatusOK, `src="/x/wiki/doku.php?id=start"`},
 		{"/l/wiki/a%3Fb", http.StatusOK, `src="/x/wiki/a%3Fb"`},
-		{"/l/grafana/", http.StatusOK, `src="http://dragon:3000/"`},
+		{"/l/grafana/", http.StatusOK, `src="http://homeserver:3000/"`},
 		{"/l/grafana/deep", http.StatusNotFound, ""},
 		{"/l/fritz/", http.StatusNotFound, ""},
 		{"/l/nope/", http.StatusNotFound, ""},
@@ -182,7 +182,7 @@ func TestProxyIsMountedOnlyForProxyLinks(t *testing.T) {
 // The server tests register no systems, so the root falls through to links.
 func TestRootFallsBackToFirstFramedLink(t *testing.T) {
 	setLinks(t)
-	t.Setenv("DD_LINKS", "fritz,grafana,wiki")
+	t.Setenv("AD_LINKS", "fritz,grafana,wiki")
 	rec := serve(newTestServer(t), http.MethodGet, "/")
 	if got := rec.Header().Get("Location"); got != "/l/grafana/" {
 		t.Errorf("/ redirects to %q, want the first link that has a page", got)
@@ -217,7 +217,7 @@ func TestSystemAPIRejectsCrossSiteWrites(t *testing.T) {
 }
 
 func TestDisabledSystemAPIIsNotFound(t *testing.T) {
-	t.Setenv("DD_SYSTEM_FRITZHOME_ENABLED", "0")
+	t.Setenv("AD_SYSTEM_FRITZHOME_ENABLED", "0")
 	h := newTestServer(t).api("fritzhome", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -231,25 +231,25 @@ func TestDisabledSystemAPIIsNotFound(t *testing.T) {
 func TestDataDirFallsBackToSystemd(t *testing.T) {
 	cases := []struct{ cfg, state, want string }{
 		{"", "", ""},
-		{"", "/var/lib/dragon-dash", "/var/lib/dragon-dash"},
-		{"", "/var/lib/dragon-dash:/var/lib/other", "/var/lib/dragon-dash"},
-		{"/srv/dd", "/var/lib/dragon-dash", "/srv/dd"},
+		{"", "/var/lib/armdash", "/var/lib/armdash"},
+		{"", "/var/lib/armdash:/var/lib/other", "/var/lib/armdash"},
+		{"/srv/dd", "/var/lib/armdash", "/srv/dd"},
 	}
 	for _, c := range cases {
-		t.Setenv("DD_CORE_DATA_DIR", c.cfg)
+		t.Setenv("AD_CORE_DATA_DIR", c.cfg)
 		t.Setenv("STATE_DIRECTORY", c.state)
 		cfg, err := config.Load()
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got := DataDir(cfg); got != c.want {
-			t.Errorf("DD_CORE_DATA_DIR=%q STATE_DIRECTORY=%q: %q, want %q", c.cfg, c.state, got, c.want)
+			t.Errorf("AD_CORE_DATA_DIR=%q STATE_DIRECTORY=%q: %q, want %q", c.cfg, c.state, got, c.want)
 		}
 	}
 }
 
 func TestBadLinkConfigStopsStartup(t *testing.T) {
-	t.Setenv("DD_LINKS", "wiki")
+	t.Setenv("AD_LINKS", "wiki")
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -270,8 +270,8 @@ func TestTLSFilesMustBeSetTogether(t *testing.T) {
 		{"", "/tls/dd.key", true},
 	}
 	for _, c := range cases {
-		t.Setenv("DD_CORE_TLS_CERT", c.cert)
-		t.Setenv("DD_CORE_TLS_KEY", c.key)
+		t.Setenv("AD_CORE_TLS_CERT", c.cert)
+		t.Setenv("AD_CORE_TLS_KEY", c.key)
 		cfg, err := config.Load()
 		if err != nil {
 			t.Fatal(err)

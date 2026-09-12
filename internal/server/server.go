@@ -17,11 +17,11 @@ import (
 	"strings"
 	"time"
 
-	"dragon-dash/internal/config"
-	"dragon-dash/internal/links"
-	"dragon-dash/internal/system"
-	"dragon-dash/internal/version"
-	"dragon-dash/web"
+	"armdash/internal/config"
+	"armdash/internal/links"
+	"armdash/internal/system"
+	"armdash/internal/version"
+	"armdash/web"
 )
 
 const (
@@ -426,7 +426,7 @@ func (s *Server) settingsData() settingsData {
 		dataUnset = dir + "  (systemd)"
 	}
 	hash := s.field(authHashKey, "Password hash",
-		"Only whether it is set is shown. dragon-dash passwd prints a new one.", "no login, editing is off")
+		"Only whether it is set is shown. armdash passwd prints a new one.", "no login, editing is off")
 	if hash.Set {
 		hash.Value = redacted
 	}

@@ -1,7 +1,7 @@
-// Command dragon-dash serves the dashboard.
+// Command armdash serves the dashboard.
 //
 // Development runs on the desktop against whatever Prometheus is reachable;
-// deployment to dragon is the same binary cross-compiled for arm64. Ports 80
+// deployment to the server is the same binary cross-compiled for arm64. Ports 80
 // and 443 are a deployment concern, set in the server's env file. The defaults
 // stay on high loopback ports so a development checkout never collides with
 // anything else on the desktop.
@@ -18,27 +18,27 @@ import (
 	"strings"
 	"time"
 
-	"dragon-dash/internal/config"
-	"dragon-dash/internal/server"
-	"dragon-dash/internal/version"
+	"armdash/internal/config"
+	"armdash/internal/server"
+	"armdash/internal/version"
 
 	// Systems are compiled in and register themselves. Whether they appear is
 	// a config decision, not a build one, see internal/system.
-	_ "dragon-dash/internal/systems/dragon"
-	_ "dragon-dash/internal/systems/fritzhome"
+	_ "armdash/internal/systems/fritzhome"
+	_ "armdash/internal/systems/host"
 )
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "passwd" {
 		if err := passwd(os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
-			fmt.Fprintln(os.Stderr, "dragon-dash passwd:", err)
+			fmt.Fprintln(os.Stderr, "armdash passwd:", err)
 			os.Exit(1)
 		}
 		return
 	}
 
 	addr := flag.String("addr", "",
-		"listen address, overrides DD_CORE_ADDR; use :8080 to accept connections from the LAN")
+		"listen address, overrides AD_CORE_ADDR; use :8080 to accept connections from the LAN")
 	envFiles := flag.String("env", ".env.dist,.env.local",
 		"comma-separated env files, later ones win; the real environment wins over all")
 	debug := flag.Bool("debug", false, "verbose logging")
@@ -84,7 +84,7 @@ func main() {
 	}
 
 	if certFile == "" {
-		log.Info("dragon-dash listening", "version", version.Version, "addr", listen, "tls", "off", "env", *envFiles)
+		log.Info("armdash listening", "version", version.Version, "addr", listen, "tls", "off", "env", *envFiles)
 		exitOnError(log, newHTTPServer(listen, srv).ListenAndServe())
 		return
 	}
@@ -101,7 +101,7 @@ func main() {
 	secure.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}
 	plain := newHTTPServer(listen, srv.PlainHandler(tlsListen))
 
-	log.Info("dragon-dash listening", "version", version.Version, "addr", listen, "tls_addr", tlsListen, "env", *envFiles)
+	log.Info("armdash listening", "version", version.Version, "addr", listen, "tls_addr", tlsListen, "env", *envFiles)
 	// Whichever listener stops first takes the process down, so systemd restarts
 	// both rather than leaving half a server running.
 	errc := make(chan error, 2)

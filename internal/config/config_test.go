@@ -27,8 +27,8 @@ func TestMissingFileIsNotAnError(t *testing.T) {
 
 func TestLaterFileWins(t *testing.T) {
 	dir := t.TempDir()
-	dist := write(t, dir, ".env.dist", "DD_CORE_PROMETHEUS_URL=http://dist:9090\n")
-	local := write(t, dir, ".env.local", "DD_CORE_PROMETHEUS_URL=http://local:9090\n")
+	dist := write(t, dir, ".env.dist", "AD_CORE_PROMETHEUS_URL=http://dist:9090\n")
+	local := write(t, dir, ".env.local", "AD_CORE_PROMETHEUS_URL=http://local:9090\n")
 	c, err := Load(dist, local)
 	if err != nil {
 		t.Fatal(err)
@@ -43,8 +43,8 @@ func TestLaterFileWins(t *testing.T) {
 
 func TestEnvironmentBeatsFiles(t *testing.T) {
 	dir := t.TempDir()
-	dist := write(t, dir, ".env.dist", "DD_CORE_PROMETHEUS_URL=http://dist:9090\n")
-	t.Setenv("DD_CORE_PROMETHEUS_URL", "http://env:9090")
+	dist := write(t, dir, ".env.dist", "AD_CORE_PROMETHEUS_URL=http://dist:9090\n")
+	t.Setenv("AD_CORE_PROMETHEUS_URL", "http://env:9090")
 	c, err := Load(dist)
 	if err != nil {
 		t.Fatal(err)
@@ -61,10 +61,10 @@ func TestParsing(t *testing.T) {
 	dir := t.TempDir()
 	f := write(t, dir, ".env", `
 # a comment
-export DD_A=plain
-DD_B = "quoted value"
-DD_C='single'
-DD_D=has=equals
+export AD_A=plain
+AD_B = "quoted value"
+AD_C='single'
+AD_D=has=equals
 `)
 	c, err := Load(f)
 	if err != nil {
@@ -83,12 +83,12 @@ func TestUnprefixedKeyIsRejected(t *testing.T) {
 	dir := t.TempDir()
 	f := write(t, dir, ".env", "PROMETHEUS_URL=http://x:9090\n")
 	if _, err := Load(f); err == nil {
-		t.Fatal("expected an error for a key without the DD_ prefix")
+		t.Fatal("expected an error for a key without the AD_ prefix")
 	}
 }
 
 func TestEnvNameMapping(t *testing.T) {
-	if got := EnvName("system.fritzhome.metric_prefix"); got != "DD_SYSTEM_FRITZHOME_METRIC_PREFIX" {
+	if got := EnvName("system.fritzhome.metric_prefix"); got != "AD_SYSTEM_FRITZHOME_METRIC_PREFIX" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -98,32 +98,32 @@ func TestUnsetSystemIsEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Enabled("dragon") {
+	if !c.Enabled("host") {
 		t.Fatal("an unconfigured system should default to enabled")
 	}
 }
 
 func TestSystemCanBeDisabled(t *testing.T) {
-	t.Setenv("DD_SYSTEM_DRAGON_ENABLED", "0")
+	t.Setenv("AD_SYSTEM_HOST_ENABLED", "0")
 	c, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Enabled("dragon") {
+	if c.Enabled("host") {
 		t.Fatal("should be disabled")
 	}
 }
 
 func TestScopeIsolatesSystems(t *testing.T) {
-	t.Setenv("DD_SYSTEM_DRAGON_SECRET", "from-dragon")
+	t.Setenv("AD_SYSTEM_HOST_SECRET", "from-host")
 	c, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := c.Scoped("fritzhome").Get("secret"); got != "" {
-		t.Fatalf("fritzhome read dragon's key: %q", got)
+		t.Fatalf("fritzhome read host's key: %q", got)
 	}
-	if got := c.Scoped("dragon").Get("secret"); got != "from-dragon" {
+	if got := c.Scoped("host").Get("secret"); got != "from-host" {
 		t.Fatalf("got %q", got)
 	}
 }

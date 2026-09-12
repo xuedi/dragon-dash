@@ -15,7 +15,7 @@ import (
 	"regexp"
 	"strings"
 
-	"dragon-dash/internal/config"
+	"armdash/internal/config"
 )
 
 type Mode string
@@ -49,7 +49,7 @@ type Link struct {
 // Key returns the dotted config key for one of a link's fields.
 func Key(id, field string) string { return "link." + id + "." + field }
 
-// Parse reads every link named in DD_LINKS. Anything malformed is an error
+// Parse reads every link named in AD_LINKS. Anything malformed is an error
 // rather than a link that quietly fails to appear.
 func Parse(cfg *config.Config) ([]Link, error) {
 	var out []Link
@@ -75,7 +75,7 @@ func Parse(cfg *config.Config) ([]Link, error) {
 		out = append(out, l)
 	}
 
-	// A link setting nobody reads is nearly always a forgotten DD_LINKS entry
+	// A link setting nobody reads is nearly always a forgotten AD_LINKS entry
 	// or a misspelt field, both of which look like "the link does not show up".
 	prefix := config.EnvName("link") + "_"
 	for _, k := range cfg.Keys() {
@@ -153,7 +153,7 @@ func (l Link) Handler(log *slog.Logger) http.Handler {
 			r.SetURL(target)
 			// Kept from the browser, as Caddy does, so the upstream builds absolute
 			// URLs with the name the visitor used rather than the loopback address
-			// dragon-dash reaches it on.
+			// armdash reaches it on.
 			r.Out.Host = r.In.Host
 			r.SetXForwarded()
 			r.Out.Header.Set("X-Forwarded-Prefix", prefix)

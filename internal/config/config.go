@@ -23,7 +23,7 @@ import (
 
 // Prefix keeps our variables out of the way of everything else in the
 // environment.
-const Prefix = "DD_"
+const Prefix = "AD_"
 
 type source string
 
@@ -97,7 +97,7 @@ func (c *Config) loadFile(path string) error {
 }
 
 // envName turns a dotted key into its environment variable name:
-// system.fritzhome.metric_prefix becomes DD_SYSTEM_FRITZHOME_METRIC_PREFIX.
+// system.fritzhome.metric_prefix becomes AD_SYSTEM_FRITZHOME_METRIC_PREFIX.
 func envName(key string) string {
 	return Prefix + strings.ToUpper(strings.NewReplacer(".", "_", "-", "_").Replace(key))
 }

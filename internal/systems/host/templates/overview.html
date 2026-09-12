@@ -3,7 +3,7 @@
 
 {{if .Unconfigured}}
   {{template "notice" (dict "Kind" "warning" "Title" "Prometheus is not configured"
-      "Body" "Set DD_CORE_PROMETHEUS_URL. Every value on this page comes from there.")}}
+      "Body" "Set AD_CORE_PROMETHEUS_URL. Every value on this page comes from there.")}}
 {{else if .Err}}
   {{template "notice" (dict "Kind" "danger" "Title" "Could not read metrics" "Body" .Err)}}
 {{end}}

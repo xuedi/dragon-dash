@@ -11,7 +11,7 @@ someone logged in.
 
 Two things *are* changed through a page: the FritzHome floor plan upload and the device positions,
 see [floorplan.md](floorplan.md). They are data, and they live apart from configuration, in a data
-directory: `DD_CORE_DATA_DIR`, falling back to systemd's `$STATE_DIRECTORY`. Each system gets its
+directory: `AD_CORE_DATA_DIR`, falling back to systemd's `$STATE_DIRECTORY`. Each system gets its
 own subdirectory. Without a data directory, no page offers to change anything.
 
 Changing that data needs the login, see [authentication.md](authentication.md). Every system
@@ -21,8 +21,8 @@ cannot make a logged-in browser do it either.
 
 ## The login
 
-`DD_CORE_AUTH_USER` and `DD_CORE_AUTH_PASSWORD_HASH` name the one user who may change anything.
-`dragon-dash passwd` prints both. They are configuration like the rest, read at startup, so the
+`AD_CORE_AUTH_USER` and `AD_CORE_AUTH_PASSWORD_HASH` name the one user who may change anything.
+`armdash passwd` prints both. They are configuration like the rest, read at startup, so the
 password changes by editing the file and restarting, never through a page. Without them nothing can
 be changed. Details in [authentication.md](authentication.md).
 
@@ -41,21 +41,21 @@ configure everything through real environment variables.
 
 ## Naming
 
-Every variable starts with `DD_`. A dotted key maps to it by uppercasing and replacing separators:
+Every variable starts with `AD_`. A dotted key maps to it by uppercasing and replacing separators:
 
 ```
-core.prometheus_url                DD_CORE_PROMETHEUS_URL
-core.tls_cert                      DD_CORE_TLS_CERT
-core.auth_user                     DD_CORE_AUTH_USER
-system.fritzhome.password          DD_SYSTEM_FRITZHOME_PASSWORD
-system.dragon.enabled              DD_SYSTEM_DRAGON_ENABLED
-link.wiki.url                      DD_LINK_WIKI_URL
+core.prometheus_url                AD_CORE_PROMETHEUS_URL
+core.tls_cert                      AD_CORE_TLS_CERT
+core.auth_user                     AD_CORE_AUTH_USER
+system.fritzhome.password          AD_SYSTEM_FRITZHOME_PASSWORD
+system.host.enabled                AD_SYSTEM_HOST_ENABLED
+link.wiki.url                      AD_LINK_WIKI_URL
 ```
 
 Navbar links have their own `link.<id>.` namespace next to `core.` and `system.`, see
 [links.md](links.md).
 
-A variable that does not start with `DD_` is rejected at load with the file and line number.
+A variable that does not start with `AD_` is rejected at load with the file and line number.
 Silently ignoring `PROMETHEUS_URL=` because of a missing prefix is a miserable thing to debug.
 
 **An unset `enabled` key means enabled.** A fresh checkout shows every system rather than an empty

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"dragon-dash/internal/config"
-	"dragon-dash/internal/sh3d"
-	"dragon-dash/internal/system"
+	"armdash/internal/config"
+	"armdash/internal/sh3d"
+	"armdash/internal/system"
 )
 
 func sh3dFile(t *testing.T, homeXML string) []byte {
@@ -117,9 +117,9 @@ func TestJSONPlanKeepsItsShape(t *testing.T) {
 func newTestFritz(t *testing.T, dataDir, planFile string) (*FritzHome, *http.ServeMux) {
 	t.Helper()
 	// No password keeps the tests away from any real box.
-	t.Setenv("DD_SYSTEM_FRITZHOME_PASSWORD", "")
-	t.Setenv("DD_SYSTEM_FRITZHOME_FLOORPLAN", "")
-	t.Setenv("DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE", planFile)
+	t.Setenv("AD_SYSTEM_FRITZHOME_PASSWORD", "")
+	t.Setenv("AD_SYSTEM_FRITZHOME_FLOORPLAN", "")
+	t.Setenv("AD_SYSTEM_FRITZHOME_FLOORPLAN_FILE", planFile)
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)

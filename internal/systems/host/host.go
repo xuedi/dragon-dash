@@ -1,10 +1,10 @@
-// Package dragon is the server-metrics system: CPU, memory, storage, thermals.
+// Package host is the server-metrics system: CPU, memory, storage, thermals.
 //
 // Every value comes from Prometheus scraping prometheus-node-exporter, not from
 // reading /proc locally. That is deliberate, it means the same code works when
-// dragon-dash runs on a different machine from the one being measured, and every
+// armdash runs on a different machine from the one being measured, and every
 // number on screen has history behind it.
-package dragon
+package host
 
 import (
 	"context"
@@ -19,14 +19,14 @@ import (
 	"strings"
 	"time"
 
-	"dragon-dash/internal/promql"
-	"dragon-dash/internal/system"
+	"armdash/internal/promql"
+	"armdash/internal/system"
 )
 
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-func init() { system.Register(&Dragon{}) }
+func init() { system.Register(&Host{}) }
 
 // chart describes one graphable metric. Adding a graph is adding an entry here.
 //
@@ -122,19 +122,17 @@ func (c chart) series() []chartSeries {
 	return []chartSeries{{Query: c.Query}}
 }
 
-type Dragon struct {
+type Host struct {
 	tmpl *template.Template
 	deps system.Deps
 	prom *promql.Client
 }
 
-func (d *Dragon) ID() string { return "dragon" }
+func (h *Host) ID() string { return "host" }
 
-// Title is the navbar label, and is not the ID: "dragon" names a personal
-// machine, which would only mislead anyone else running this.
-func (d *Dragon) Title() string { return "Host" }
+func (h *Host) Title() string { return "Host" }
 
-func (d *Dragon) Nav() []system.NavItem {
+func (h *Host) Nav() []system.NavItem {
 	nav := []system.NavItem{{Slug: "overview", Title: "Overview"}}
 	for _, c := range charts {
 		nav = append(nav, system.NavItem{Slug: c.Slug, Title: c.Title})
@@ -144,13 +142,13 @@ func (d *Dragon) Nav() []system.NavItem {
 
 // ConfigSchema is empty: this system needs nothing beyond the core Prometheus
 // URL, which the shell owns.
-func (d *Dragon) ConfigSchema() []system.ConfigField { return nil }
+func (h *Host) ConfigSchema() []system.ConfigField { return nil }
 
-func (d *Dragon) Register(mux *http.ServeMux, prefix string, deps system.Deps) {
-	d.deps = deps
-	d.prom = promql.New(deps.PromURL)
-	d.tmpl = system.MustTemplates(templatesFS, "templates/*.html")
-	mux.HandleFunc("GET "+prefix+"range", d.handleRange)
+func (h *Host) Register(mux *http.ServeMux, prefix string, deps system.Deps) {
+	h.deps = deps
+	h.prom = promql.New(deps.PromURL)
+	h.tmpl = system.MustTemplates(templatesFS, "templates/*.html")
+	mux.HandleFunc("GET "+prefix+"range", h.handleRange)
 }
 
 type statCard struct {
@@ -167,19 +165,19 @@ type overviewData struct {
 	Unconfigured bool
 }
 
-func (d *Dragon) Render(slug string, r *http.Request) (template.HTML, error) {
+func (h *Host) Render(slug string, r *http.Request) (template.HTML, error) {
 	if slug == "overview" {
-		return d.renderOverview(r)
+		return h.renderOverview(r)
 	}
 	for _, c := range charts {
 		if c.Slug == slug {
-			return d.renderChart(c)
+			return h.renderChart(c)
 		}
 	}
 	return "", fmt.Errorf("unknown page %q", slug)
 }
 
-func (d *Dragon) renderChart(c chart) (template.HTML, error) {
+func (h *Host) renderChart(c chart) (template.HTML, error) {
 	top := system.PageTop{Title: c.Title}
 	if len(c.Series) > 0 {
 		// Four queries will not fit in the infobar, so the bar carries the
@@ -204,7 +202,7 @@ func (d *Dragon) renderChart(c chart) (template.HTML, error) {
         <option value="31536000">last year</option>
       </select></div>`)
 
-	return d.exec("chart", struct {
+	return h.exec("chart", struct {
 		Top          system.PageTop
 		Title        string
 		Metric       string
@@ -213,18 +211,18 @@ func (d *Dragon) renderChart(c chart) (template.HTML, error) {
 		Top:          top,
 		Title:        c.Title,
 		Metric:       c.Slug,
-		Unconfigured: d.deps.PromURL() == "",
+		Unconfigured: h.deps.PromURL() == "",
 	})
 }
 
-func (d *Dragon) renderOverview(r *http.Request) (template.HTML, error) {
-	data := overviewData{Unconfigured: d.deps.PromURL() == ""}
+func (h *Host) renderOverview(r *http.Request) (template.HTML, error) {
+	data := overviewData{Unconfigured: h.deps.PromURL() == ""}
 	data.Top = system.PageTop{Title: "Overview"}
-	if url := d.deps.PromURL(); url != "" {
+	if url := h.deps.PromURL(); url != "" {
 		data.Top.Infof(`<span class="has-text-grey is-size-7">%s</span>`, template.HTMLEscapeString(url))
 	}
 	if data.Unconfigured {
-		return d.exec("overview", data)
+		return h.exec("overview", data)
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
@@ -256,7 +254,7 @@ func (d *Dragon) renderOverview(r *http.Request) (template.HTML, error) {
 	}
 
 	for _, p := range probes {
-		v, ok, err := d.prom.QueryOne(ctx, p.expr)
+		v, ok, err := h.prom.QueryOne(ctx, p.expr)
 		if err != nil {
 			// One error is enough; they will all be the same connection problem.
 			data.Err = err.Error()
@@ -269,13 +267,13 @@ func (d *Dragon) renderOverview(r *http.Request) (template.HTML, error) {
 		}
 		data.Stats = append(data.Stats, card)
 	}
-	return d.exec("overview", data)
+	return h.exec("overview", data)
 }
 
-func (d *Dragon) exec(name string, data any) (template.HTML, error) {
+func (h *Host) exec(name string, data any) (template.HTML, error) {
 	var buf []byte
 	w := &byteWriter{buf: &buf}
-	if err := d.tmpl.ExecuteTemplate(w, name, data); err != nil {
+	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
 		return "", err
 	}
 	return template.HTML(buf), nil
@@ -289,7 +287,7 @@ func (w *byteWriter) Write(p []byte) (int, error) {
 }
 
 // handleRange feeds the uPlot charts.
-func (d *Dragon) handleRange(w http.ResponseWriter, r *http.Request) {
+func (h *Host) handleRange(w http.ResponseWriter, r *http.Request) {
 	metric := r.URL.Query().Get("metric")
 	var c *chart
 	for i := range charts {
@@ -326,7 +324,7 @@ func (d *Dragon) handleRange(w http.ResponseWriter, r *http.Request) {
 	}
 	var lines []line
 	for _, cs := range c.series() {
-		res, err := d.prom.QueryRange(ctx, cs.Query, start, end, step)
+		res, err := h.prom.QueryRange(ctx, cs.Query, start, end, step)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return

@@ -1,10 +1,10 @@
 # Local development only: a Prometheus with real data so the dashboards are not
-# empty. Nothing here is meant for dragon.
+# empty. Nothing here is meant for a server.
 #
 # Host networking, deliberately: it removes the need for veth pairs (which some
-# desktop kernels refuse) and lets Prometheus scrape dragon-dash on 127.0.0.1
+# desktop kernels refuse) and lets Prometheus scrape armdash on 127.0.0.1
 # while it runs from `just run`.
-name: dragon-dash-dev
+name: armdash-dev
 
 services:
   prometheus:

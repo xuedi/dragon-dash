@@ -1,6 +1,6 @@
-# dragon-dash
+# armdash
 
-![version](https://img.shields.io/badge/version-0.11.0-blue)
+![version](https://img.shields.io/badge/version-0.12.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -23,7 +23,7 @@ to run permanently on a 12 W box, it is **not packaged for aarch64** at all
 (neither in Arch Linux ARM's repos nor the AUR), and most of it goes unused when
 all you want is a handful of charts and a floor plan of your flat.
 
-dragon-dash is the small version of that: one static binary, no database, no
+armdash is the small version of that: one static binary, no database, no
 node toolchain, no runtime dependencies. Go with the standard library only,
 server-rendered `html/template` with [htmx](https://htmx.org),
 [Bulma](https://bulma.io) for the CSS and [uPlot](https://github.com/leeoniya/uPlot)
@@ -44,7 +44,7 @@ lines, so a warm board says which part is warm.
 FRITZ!Box smart home data: smart plug power and energy, room temperatures,
 humidity, thermostat setpoints and battery levels.
 
-dragon-dash talks to the box itself over AVM's documented interfaces, so there
+armdash talks to the box itself over AVM's documented interfaces, so there
 is no separate exporter to run and the credentials live in one place. The page
 shows the live reading; the same reading is published at `/metrics` for
 Prometheus to keep as history.
@@ -66,33 +66,33 @@ Details in [`docs/floorplan.md`](docs/floorplan.md).
 Extra navbar entries for the other things on the server, like the Wiki in the
 screenshot, a Grafana or the FRITZ!Box itself. Each shows below the navbar in a
 frame, through a built-in reverse proxy, or opens in a new tab, from a few
-`DD_LINK_*` lines of configuration. Details in [`docs/links.md`](docs/links.md).
+`AD_LINK_*` lines of configuration. Details in [`docs/links.md`](docs/links.md).
 
 ## Installing
 
-Grab a package or a tarball from [releases](https://github.com/xuedi/dragon-dash/releases).
+Grab a package or a tarball from [releases](https://github.com/xuedi/armdash/releases).
 Every version that lands on `main` is built and released automatically, each
 with static amd64 and arm64 binaries plus `.deb`, `.rpm` and Arch packages, all
 built from the same commit.
 
 ```bash
-sudo pacman -U dragon-dash-*-aarch64.pkg.tar.zst   # or dpkg -i / rpm -i
-dragon-dash passwd                                  # prints the login lines
-sudoedit /etc/dragon-dash/dragon-dash.env          # address, Prometheus, FRITZ!Box, login
-sudo systemctl enable --now dragon-dash
+sudo pacman -U armdash_*_linux_arm64.pkg.tar.zst   # or dpkg -i / rpm -i
+armdash passwd                                     # prints the login lines
+sudoedit /etc/armdash/armdash.env                  # address, Prometheus, FRITZ!Box, login
+sudo systemctl enable --now armdash
 ```
 
 `just install` does the same from a checkout of this repository.
 
 The package installs a hardened systemd unit that runs as a dedicated
 unprivileged user with the filesystem read-only except for one directory,
-`/var/lib/dragon-dash`, which holds an uploaded floor plan and the device
+`/var/lib/armdash`, which holds an uploaded floor plan and the device
 positions. Configuration is read-only and the history lives in Prometheus.
 `CAP_NET_BIND_SERVICE` is granted so ports 80 and 443 work without root.
 
-dragon-dash keeps no history itself, so a full deployment is three services:
-node_exporter and dragon-dash's own `/metrics` are scraped by Prometheus, and
-dragon-dash queries Prometheus back to draw the pages. Both exporters are
+armdash keeps no history itself, so a full deployment is three services:
+node_exporter and armdash's own `/metrics` are scraped by Prometheus, and
+armdash queries Prometheus back to draw the pages. Both exporters are
 packaged for aarch64, so none of it needs containers. `deploy/` also holds a
 Compose stack for hosts where containers are preferred. Details in
 [`docs/deployment.md`](docs/deployment.md).
@@ -101,12 +101,12 @@ Compose stack for hosts where containers are preferred. Details in
 
 Env files and the environment, nothing else: `.env.dist` for committed defaults,
 `.env.local` for credentials, real environment variables winning over both. The
-packaged unit reads `/etc/dragon-dash/dragon-dash.env` instead.
+packaged unit reads `/etc/armdash/armdash.env` instead.
 
 ```ini
-DD_CORE_ADDR=127.0.0.1:9494
-DD_CORE_PROMETHEUS_URL=http://127.0.0.1:9090
-DD_SYSTEM_FRITZHOME_URL=http://fritz.box
+AD_CORE_ADDR=127.0.0.1:9494
+AD_CORE_PROMETHEUS_URL=http://127.0.0.1:9090
+AD_SYSTEM_FRITZHOME_URL=http://fritz.box
 ```
 
 Configuration is **read-only at runtime**, which is the point. The Settings page
@@ -114,12 +114,12 @@ shows what is set and where each value came from, but nothing writes it back,
 not even for someone logged in: the password changes by editing the file. Full
 key list in [`docs/configuration.md`](docs/configuration.md).
 
-Setting `DD_CORE_TLS_CERT` and `DD_CORE_TLS_KEY` turns on HTTPS on
-`DD_CORE_TLS_ADDR`. The plain port then redirects there, except `/metrics`,
+Setting `AD_CORE_TLS_CERT` and `AD_CORE_TLS_KEY` turns on HTTPS on
+`AD_CORE_TLS_ADDR`. The plain port then redirects there, except `/metrics`,
 which Prometheus keeps scraping over HTTP. Details in
 [`docs/deployment.md`](docs/deployment.md#https).
 
-`DD_LINKS` lists the extra navbar entries, each with its own `DD_LINK_<ID>_*`
+`AD_LINKS` lists the extra navbar entries, each with its own `AD_LINK_<ID>_*`
 lines, see [`docs/links.md`](docs/links.md).
 
 ## Building and running from source
@@ -132,7 +132,7 @@ just check        # gofmt, vet, tests
 just install      # install this checkout as a service, the way the packages do
 ```
 
-Until `DD_CORE_PROMETHEUS_URL` points somewhere real, every page politely says
+Until `AD_CORE_PROMETHEUS_URL` points somewhere real, every page politely says
 so rather than showing zeroes. For real data while developing, run Prometheus
 and node_exporter on the desktop with `just dev-up` (prometheus on `:9090`,
 node_exporter on `:9100`).

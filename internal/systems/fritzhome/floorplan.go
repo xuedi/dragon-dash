@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"dragon-dash/internal/fritzbox"
-	"dragon-dash/internal/sh3d"
-	"dragon-dash/internal/system"
+	"armdash/internal/fritzbox"
+	"armdash/internal/sh3d"
+	"armdash/internal/system"
 )
 
 const examplePlan = `{

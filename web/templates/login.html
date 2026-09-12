@@ -6,8 +6,8 @@
       {{if not .Configured}}
       <div class="notification is-warning is-light">
         <p><strong>No login is configured</strong>, so nothing can be changed.</p>
-        <p class="mt-2">Run <code>dragon-dash passwd</code> on the server, add the two lines it prints,
-        <code>DD_CORE_AUTH_USER</code> and <code>DD_CORE_AUTH_PASSWORD_HASH</code>, to the env file and restart.</p>
+        <p class="mt-2">Run <code>armdash passwd</code> on the server, add the two lines it prints,
+        <code>AD_CORE_AUTH_USER</code> and <code>AD_CORE_AUTH_PASSWORD_HASH</code>, to the env file and restart.</p>
       </div>
       {{else}}
       {{if .Err}}<div class="notification is-danger is-light">{{.Err}}</div>{{end}}

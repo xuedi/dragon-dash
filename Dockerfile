@@ -8,11 +8,11 @@ COPY internal ./internal
 COPY web ./web
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-arm64} \
-    go build -trimpath -ldflags="-s -w" -o /dragon-dash ./cmd/dragon-dash
+    go build -trimpath -ldflags="-s -w" -o /armdash ./cmd/armdash
 
 FROM scratch
-COPY --from=build /dragon-dash /dragon-dash
+COPY --from=build /armdash /armdash
 # Needed only if a future system talks to an HTTPS endpoint directly.
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 EXPOSE 8080
-ENTRYPOINT ["/dragon-dash", "-addr", "0.0.0.0:8080", "-config", "/data/config.json"]
+ENTRYPOINT ["/armdash", "-addr", "0.0.0.0:8080"]

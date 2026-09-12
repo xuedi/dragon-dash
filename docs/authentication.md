@@ -1,6 +1,6 @@
 # Authentication
 
-dragon-dash has one login, for the owner. It guards everything that changes something and the
+armdash has one login, for the owner. It guards everything that changes something and the
 Settings page. The dashboards themselves stay open to anyone on the network, like a display on the
 wall.
 
@@ -30,11 +30,11 @@ and Edit buttons until the two lines below are added, rather than leaving them o
 Two lines in the env file, like every other setting:
 
 ```ini
-DD_CORE_AUTH_USER=admin
-DD_CORE_AUTH_PASSWORD_HASH=pbkdf2-sha256:600000:<salt>:<key>
+AD_CORE_AUTH_USER=admin
+AD_CORE_AUTH_PASSWORD_HASH=pbkdf2-sha256:600000:<salt>:<key>
 ```
 
-`dragon-dash passwd` asks for the password twice, without echo, and prints both lines. It writes no
+`armdash passwd` asks for the password twice, without echo, and prints both lines. It writes no
 file. Configuration is only ever changed by editing the env file and restarting, so there is no page
 and no command that can quietly change who may log in; changing the password is running `passwd`
 again. Setting one of the two without the other, or a damaged hash, refuses to start, rather than
@@ -82,13 +82,13 @@ out for 15 minutes, with `429` and `Retry-After`. A successful login clears the 
 
 There is deliberately no per-account lock. With one account it would let anyone on the network lock
 the owner out on purpose, by failing with the owner's name. And `X-Forwarded-For` is never read:
-dragon-dash terminates TLS itself with no proxy in front, and trusting a header anyone can set would
+armdash terminates TLS itself with no proxy in front, and trusting a header anyone can set would
 let a guesser pick a fresh address for every attempt.
 
 ## Rejected
 
 - **A setup page that creates the account.** It needs the app to write its own configuration, which
-  is exactly what dragon-dash does not do. `passwd` prints, the operator pastes.
+  is exactly what armdash does not do. `passwd` prints, the operator pastes.
 - **More than one user, or roles.** A dashboard needs an owner, not user management.
 - **A signed cookie holding the session.** It cannot be revoked before it expires; a server-side
   session ends the moment the owner logs out.

@@ -61,7 +61,7 @@ type parsed struct {
 func parse(encoded string) (parsed, error) {
 	parts := strings.Split(encoded, ":")
 	if len(parts) != 4 || parts[0] != scheme {
-		return parsed{}, errors.New("not a " + scheme + " hash, generate one with dragon-dash passwd")
+		return parsed{}, errors.New("not a " + scheme + " hash, generate one with armdash passwd")
 	}
 	iter, err := strconv.Atoi(parts[1])
 	if err != nil || iter < minIterations || iter > maxIterations {

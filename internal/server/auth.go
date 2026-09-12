@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"dragon-dash/internal/auth"
-	"dragon-dash/internal/config"
-	"dragon-dash/internal/system"
+	"armdash/internal/auth"
+	"armdash/internal/config"
+	"armdash/internal/system"
 )
 
 const (
@@ -114,7 +114,7 @@ func localPath(next string) string {
 	return next
 }
 
-// clientAddr is the peer address. X-Forwarded-For is never read: dragon-dash
+// clientAddr is the peer address. X-Forwarded-For is never read: armdash
 // terminates TLS itself, and a header anyone can set would let a guesser pick
 // a fresh address for every attempt.
 func clientAddr(r *http.Request) string {

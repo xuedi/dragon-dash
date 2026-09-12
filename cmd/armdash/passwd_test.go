@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"dragon-dash/internal/auth"
+	"armdash/internal/auth"
 )
 
 func runPasswd(t *testing.T, input string, args ...string) (string, error) {
@@ -29,10 +29,10 @@ func TestPasswdPrintsBothLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 2 || lines[0] != "DD_CORE_AUTH_USER=admin" {
+	if len(lines) != 2 || lines[0] != "AD_CORE_AUTH_USER=admin" {
 		t.Fatalf("output %q, want the default user and a hash", out)
 	}
-	hash, ok := strings.CutPrefix(lines[1], "DD_CORE_AUTH_PASSWORD_HASH=")
+	hash, ok := strings.CutPrefix(lines[1], "AD_CORE_AUTH_PASSWORD_HASH=")
 	if !ok || !auth.Verify("correct horse", hash) {
 		t.Errorf("%q does not verify the password", lines[1])
 	}

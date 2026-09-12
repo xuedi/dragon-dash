@@ -1,3 +1,3 @@
-module dragon-dash
+module armdash
 
 go 1.27

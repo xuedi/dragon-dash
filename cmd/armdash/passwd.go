@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"strings"
 
-	"dragon-dash/internal/auth"
+	"armdash/internal/auth"
 )
 
 // passwd prints the two settings that turn the login on. It writes no file:
@@ -21,8 +21,8 @@ func passwd(args []string, in *os.File, out, msg io.Writer) error {
 	fs := flag.NewFlagSet("passwd", flag.ContinueOnError)
 	fs.SetOutput(msg)
 	fs.Usage = func() {
-		fmt.Fprintln(msg, "usage: dragon-dash passwd [user]")
-		fmt.Fprintln(msg, "Asks for a password and prints the DD_CORE_AUTH_* lines for the env file.")
+		fmt.Fprintln(msg, "usage: armdash passwd [user]")
+		fmt.Fprintln(msg, "Asks for a password and prints the AD_CORE_AUTH_* lines for the env file.")
 	}
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -61,8 +61,8 @@ func passwd(args []string, in *os.File, out, msg io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(msg, "\nAdd these two lines to the env file, /etc/dragon-dash/dragon-dash.env for a package install, and restart dragon-dash:")
-	fmt.Fprintf(out, "DD_CORE_AUTH_USER=%s\nDD_CORE_AUTH_PASSWORD_HASH=%s\n", user, hash)
+	fmt.Fprintln(msg, "\nAdd these two lines to the env file, /etc/armdash/armdash.env for a package install, and restart armdash:")
+	fmt.Fprintf(out, "AD_CORE_AUTH_USER=%s\nAD_CORE_AUTH_PASSWORD_HASH=%s\n", user, hash)
 	return nil
 }
 

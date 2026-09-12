@@ -3,7 +3,7 @@
 
 {{if .Unconfigured}}
   {{template "notice" (dict "Kind" "warning" "Title" "Prometheus is not configured"
-      "Body" "Set DD_CORE_PROMETHEUS_URL to draw this chart.")}}
+      "Body" "Set AD_CORE_PROMETHEUS_URL to draw this chart.")}}
 {{else}}
   <div class="box"><div id="dd-chart"></div></div>
 
@@ -78,7 +78,7 @@
     const secs = document.getElementById('dd-range').value;
     const status = document.getElementById('dd-status');
     status.className = 'tag is-light'; status.textContent = 'loading';
-    fetch('/s/dragon/api/range?metric={{.Metric}}&window=' + secs)
+    fetch('/s/host/api/range?metric={{.Metric}}&window=' + secs)
       .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error(t))))
       .then(d => {
         if (!d.time || d.time.length === 0) {
