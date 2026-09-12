@@ -1,11 +1,22 @@
 # Configuration
 
-Read-only, loaded once at startup from env files and the environment. Nothing can be changed
+Read-only, loaded once at startup from env files and the environment. Nothing in it can be changed
 through the web interface.
 
-That is the central design decision, not an omission. With no write path there is no form to
-protect, no CSRF surface and no way for a visitor to point the application at somewhere else. It is
-what makes running on a LAN without a login defensible.
+That is the central design decision, not an omission. With no way to change configuration there is
+no form that can point the application somewhere else or read a credential back out. It is what
+makes running on a LAN without a login defensible.
+
+## Data is not configuration
+
+Two things *are* changed through a page: the FritzHome floor plan upload and the device positions,
+see [floorplan.md](floorplan.md). They are data, and they live apart from configuration, in a data
+directory: `DD_CORE_DATA_DIR`, falling back to systemd's `$STATE_DIRECTORY`. Each system gets its
+own subdirectory. Without a data directory, no page offers to change anything.
+
+Every system endpoint under `/s/<id>/api/` goes through Go's `http.CrossOriginProtection`, which
+rejects a state-changing request a browser marks as coming from another site. Anyone on the LAN can
+still change that data; a page elsewhere on the web cannot make their browser do it.
 
 ## Sources
 

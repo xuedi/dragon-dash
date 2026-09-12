@@ -68,6 +68,9 @@ type Deps struct {
 	Log    *slog.Logger
 	// PromURL is the configured Prometheus base URL, or "" if unset.
 	PromURL func() string
+	// DataDir is this system's own directory for what people change through a
+	// page, or "" when no data directory is configured. It may not exist yet.
+	DataDir string
 }
 
 // System is the contract. Keep it small and serialisable-ish: if out-of-process

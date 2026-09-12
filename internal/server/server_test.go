@@ -188,6 +188,65 @@ func TestRootFallsBackToFirstFramedLink(t *testing.T) {
 	}
 }
 
+func TestSystemAPIRejectsCrossSiteWrites(t *testing.T) {
+	h := newTestServer(t).api("fritzhome", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	cases := []struct {
+		method, site string
+		want         int
+	}{
+		{http.MethodPost, "cross-site", http.StatusForbidden},
+		{http.MethodPost, "same-site", http.StatusForbidden},
+		{http.MethodPost, "same-origin", http.StatusNoContent},
+		{http.MethodPost, "", http.StatusNoContent},
+		{http.MethodGet, "cross-site", http.StatusNoContent},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(c.method, "/s/fritzhome/api/positions", nil)
+		if c.site != "" {
+			r.Header.Set("Sec-Fetch-Site", c.site)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		if rec.Code != c.want {
+			t.Errorf("%s with Sec-Fetch-Site %q = %d, want %d", c.method, c.site, rec.Code, c.want)
+		}
+	}
+}
+
+func TestDisabledSystemAPIIsNotFound(t *testing.T) {
+	t.Setenv("DD_SYSTEM_FRITZHOME_ENABLED", "0")
+	h := newTestServer(t).api("fritzhome", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/s/fritzhome/api/positions", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("a disabled system's API = %d, want 404", rec.Code)
+	}
+}
+
+func TestDataDirFallsBackToSystemd(t *testing.T) {
+	cases := []struct{ cfg, state, want string }{
+		{"", "", ""},
+		{"", "/var/lib/dragon-dash", "/var/lib/dragon-dash"},
+		{"", "/var/lib/dragon-dash:/var/lib/other", "/var/lib/dragon-dash"},
+		{"/srv/dd", "/var/lib/dragon-dash", "/srv/dd"},
+	}
+	for _, c := range cases {
+		t.Setenv("DD_CORE_DATA_DIR", c.cfg)
+		t.Setenv("STATE_DIRECTORY", c.state)
+		cfg, err := config.Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := DataDir(cfg); got != c.want {
+			t.Errorf("DD_CORE_DATA_DIR=%q STATE_DIRECTORY=%q: %q, want %q", c.cfg, c.state, got, c.want)
+		}
+	}
+}
+
 func TestBadLinkConfigStopsStartup(t *testing.T) {
 	t.Setenv("DD_LINKS", "wiki")
 	cfg, err := config.Load()

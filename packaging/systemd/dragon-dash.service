@@ -12,9 +12,12 @@ ExecStart=/usr/bin/dragon-dash -env /etc/dragon-dash/dragon-dash.env
 Restart=on-failure
 RestartSec=5
 
-# Hardening. The app never writes anything: configuration is read-only by
-# design, and every metric lives in Prometheus. So the whole filesystem can stay
-# read-only, with no ReadWritePaths exception at all.
+# Hardening. Configuration is read-only by design and every metric lives in
+# Prometheus. The one thing the app writes is what people change through a
+# page, an uploaded floor plan and device positions, and that goes to
+# /var/lib/dragon-dash, the only writable path. The rest of the filesystem
+# stays read-only.
+StateDirectory=dragon-dash
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

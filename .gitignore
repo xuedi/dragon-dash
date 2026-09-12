@@ -10,6 +10,7 @@
 # runtime state, config.json holds credentials, never commit it
 /config.json
 *.tmp
+/var/
 
 # deployment secrets
 /deploy/.env

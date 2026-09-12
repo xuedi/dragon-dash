@@ -12,6 +12,8 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,7 +24,10 @@ import (
 	"dragon-dash/web"
 )
 
-const prometheusURLKey = "core.prometheus_url"
+const (
+	prometheusURLKey = "core.prometheus_url"
+	dataDirKey       = "core.data_dir"
+)
 
 // themeCookie holds a light/dark override, or is absent to follow the browser.
 //
@@ -96,14 +101,47 @@ func (s *Server) routes() {
 	}
 
 	// Each system gets its own subtree for fragments and JSON.
+	dataDir := DataDir(s.cfg)
 	for _, sys := range system.All() {
 		prefix := "/s/" + sys.ID() + "/api/"
-		sys.Register(s.mux, prefix, system.Deps{
+		deps := system.Deps{
 			Config:  s.cfg.Scoped(sys.ID()),
 			Log:     s.log.With("system", sys.ID()),
 			PromURL: s.PromURL,
-		})
+		}
+		if dataDir != "" {
+			deps.DataDir = filepath.Join(dataDir, sys.ID())
+		}
+		api := http.NewServeMux()
+		sys.Register(api, prefix, deps)
+		s.mux.Handle(prefix, s.api(sys.ID(), api))
 	}
+}
+
+// api guards a system's own endpoints. The cross-site check sits here rather
+// than in each system, so a new write endpoint is covered without anyone having
+// to remember it. A request with neither Sec-Fetch-Site nor Origin, curl for
+// instance, is not a browser being tricked and passes.
+func (s *Server) api(id string, h http.Handler) http.Handler {
+	protected := http.NewCrossOriginProtection().Handler(h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.cfg.Enabled(id) {
+			http.NotFound(w, r)
+			return
+		}
+		protected.ServeHTTP(w, r)
+	})
+}
+
+// DataDir is where systems keep what people change through a page. systemd
+// passes StateDirectory= in $STATE_DIRECTORY, which can list several
+// colon-separated paths; the first is ours.
+func DataDir(cfg *config.Config) string {
+	if d := cfg.Get(dataDirKey); d != "" {
+		return d
+	}
+	d, _, _ := strings.Cut(os.Getenv("STATE_DIRECTORY"), ":")
+	return d
 }
 
 // enabled returns the systems that should be visible right now.
@@ -341,6 +379,10 @@ func (s *Server) field(key, label, help, unset string) settingsField {
 }
 
 func (s *Server) settingsData() settingsData {
+	dataUnset := "uploads and editing are off"
+	if dir := DataDir(s.cfg); dir != "" {
+		dataUnset = dir + "  (systemd)"
+	}
 	d := settingsData{
 		Files: s.files,
 		Core: []settingsField{
@@ -350,6 +392,8 @@ func (s *Server) settingsData() settingsData {
 				"HTTPS is on when both the certificate and the key are set.", "HTTPS is off"),
 			s.field(tlsKeyKey, "TLS key",
 				"Readable by the service user and root, nobody else.", "HTTPS is off"),
+			s.field(dataDirKey, "Data directory",
+				"Uploaded floor plans and device positions. Falls back to systemd's StateDirectory.", dataUnset),
 			s.field(links.ListKey, "Navbar links",
 				"IDs of the extra navbar entries, in order. Each needs its own URL.", "none"),
 		},

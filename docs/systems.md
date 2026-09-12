@@ -30,7 +30,14 @@ the fragment in the layout, Each system owns its own templates through its own `
 what keeps them genuinely independent.
 
 `Register` gives a system a subtree at `/s/<id>/api/` for htmx fragments and JSON. The Host
-system's chart data comes from there.
+system's chart data comes from there, FritzHome's floor plan upload goes there. The shell wraps the
+whole subtree: a disabled system's endpoints answer 404, and every state-changing request passes
+Go's `http.CrossOriginProtection`, so a write endpoint is safe from cross-site requests without the
+system doing anything.
+
+`Deps.DataDir` is the system's own directory for what people change through a page, empty when no
+data directory is configured. A system that writes offers nothing to change when it is empty. See
+[configuration.md](configuration.md).
 
 The ID and the title are deliberately unrelated: the Host system is still `dragon` in URLs and in
 `DD_SYSTEM_DRAGON_ENABLED`, because an ID is a stable identifier and a title is a label that can be

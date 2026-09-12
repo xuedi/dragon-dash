@@ -1,30 +1,56 @@
 {{define "floorplan"}}
 {{template "page-top" .Top}}
+{{/* The upload's answer lands here. htmx fires before-swap on the target,
+     not on the form, so this is where a rejected file's 422 is let through. */}}
+<div id="fp-message"
+     hx-on::before-swap="if (event.detail.xhr.status === 422) { event.detail.shouldSwap = true; event.detail.isError = false; }"></div>
+{{if .Err}}{{template "notice" (dict "Kind" "danger" "Title" "Floor plan" "Body" .Err)}}{{end}}
 
 {{if not .HasPlan}}
+  {{if not .Err}}
   <div class="notification is-info is-light">
     <p><strong>No floor plan defined yet.</strong></p>
-    <p class="mt-2">The plan is data, not code: rooms are polygons, devices are placed by AIN.
-      Point <code>DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE</code> at a JSON file.</p>
+    <p class="mt-2">{{if .Editable}}Upload a SweetHome3D <code>.sh3d</code> file, an SVG or a picture of the
+      flat with the button above, or point{{else}}Point{{end}} <code>DD_SYSTEM_FRITZHOME_FLOORPLAN_FILE</code> at a <code>.sh3d</code>
+      file or at a JSON plan like this one: rooms are polygons, devices are placed by AIN.</p>
     <pre class="mt-3 is-size-7">{{.Example}}</pre>
   </div>
+  {{end}}
 {{else}}
 <style>
   /* An SVG floor plan is not a Bulma component, so it needs rules of its own.
      Every value is still a Bulma variable, which is what makes the plan follow
      the light and dark palettes instead of staying a white slab. */
-  .fp-room    { fill: var(--bulma-scheme-main-ter); }
-  .fp-outline { stroke: var(--bulma-text-strong); }
-  .fp-wall    { stroke: var(--bulma-text-weak); }
-  .fp-label   { fill: var(--bulma-text-weak); }
-  .fp-name    { fill: var(--bulma-text-strong); }
+  .fp-room      { fill: var(--bulma-scheme-main-ter); }
+  .fp-outline   { stroke: var(--bulma-text-strong); }
+  .fp-wall      { stroke: var(--bulma-text-weak); }
+  .fp-gap       { stroke: var(--bulma-scheme-main); }
+  .fp-furniture { stroke: var(--bulma-border); }
+  .fp-strip     { fill: var(--bulma-scheme-main-bis); }
+  .fp-label     { fill: var(--bulma-text-weak); }
+  .fp-name      { fill: var(--bulma-text-strong); }
+  /* Edit mode is one class on the svg, so leaving it is a reload and nothing else. */
+  #fp-svg:not(.fp-editing) .fp-edit-only { display: none; }
+  #fp-svg.fp-editing { touch-action: none; user-select: none; }
+  #fp-svg.fp-editing .fp-device { cursor: grab; }
 </style>
 <div class="box">
-  <svg viewBox="0 0 {{.W}} {{.H}}" style="width:100%;max-height:75vh" role="img"
+  <svg id="fp-svg" viewBox="{{.ViewBox}}" data-edit-box="{{.EditBox}}" data-plan-bottom="{{.PlanBottom}}"
+       style="width:100%;max-height:75vh" role="img"
        aria-label="apartment floor plan with live sensor readings">
+    {{with .View}}
+
+    {{if .Image}}
+      <image href="{{.Image}}" x="0" y="0" width="{{.W}}" height="{{.H}}" preserveAspectRatio="none"/>
+    {{end}}
 
     {{range .Rooms}}
       <polygon class="fp-room" points="{{.Points}}" stroke="none"/>
+    {{end}}
+
+    {{range .Furniture}}
+      <rect class="fp-furniture" x="{{.X}}" y="{{.Y}}" width="{{.W}}" height="{{.H}}" fill="none"
+            stroke-width="1.5"{{if .Angle}} transform="rotate({{.Angle}} {{.CX}} {{.CY}})"{{end}}><title>{{.Name}}</title></rect>
     {{end}}
 
     {{if .Outline}}
@@ -32,36 +58,148 @@
                stroke-width="6" stroke-linejoin="round"/>
     {{end}}
 
+    {{$class := .WallClass}}{{$cap := .WallCap}}
     {{range .Walls}}
-      <polyline class="fp-wall" points="{{.}}" fill="none"
-                stroke-width="3" stroke-linecap="round"/>
+      <polyline class="{{$class}}" points="{{.Points}}" fill="none"
+                stroke-width="{{.Width}}" stroke-linecap="{{$cap}}"/>
+    {{end}}
+
+    {{/* A window is a gap in the wall with a pane drawn across it. */}}
+    {{range .Windows}}
+      <line class="fp-gap" x1="{{.X1}}" y1="{{.Y1}}" x2="{{.X2}}" y2="{{.Y2}}" stroke-width="{{.Width}}"/>
+      <line class="fp-wall" x1="{{.X1}}" y1="{{.Y1}}" x2="{{.X2}}" y2="{{.Y2}}" stroke-width="2"/>
     {{end}}
 
     {{/* Doors sit on top of the walls they interrupt, so they read as gaps. */}}
     {{range .Doors}}
       <line x1="{{.X1}}" y1="{{.Y1}}" x2="{{.X2}}" y2="{{.Y2}}"
-            stroke="hsl(348, 86%, 61%)" stroke-width="5" stroke-linecap="round"/>
+            stroke="hsl(348, 86%, 61%)" stroke-width="{{.Width}}" stroke-linecap="round"/>
     {{end}}
 
-    {{range .Rooms}}
-      <text class="fp-label" x="{{.LabelX}}" y="{{.LabelY}}" font-size="15"
+    {{range .Rooms}}{{if .Name}}
+      <text class="fp-label" x="{{.LabelX}}" y="{{.LabelY}}" font-size="15" text-anchor="{{.Anchor}}"
             font-family="Inter, sans-serif">{{.Name}}</text>
+    {{end}}{{end}}
+
+    <g class="fp-edit-only">
+      <rect class="fp-strip" x="{{.MinX}}" y="{{$.PlanBottom}}" width="{{.W}}" height="{{$.StripH}}"/>
+      <text class="fp-label" x="{{.MinX}}" y="{{$.PlanBottom}}" dx="12" dy="26" font-size="13"
+            font-family="Inter, sans-serif">Not placed. Drag a device onto the plan to place it, or back here to take it off.</text>
+    </g>
     {{end}}
 
-    {{range .Devices}}
-      <g>
-        <circle cx="{{.X}}" cy="{{.Y}}" r="26" fill="{{.Colour}}" opacity="0.16"/>
-        <circle cx="{{.X}}" cy="{{.Y}}" r="19" fill="{{.Colour}}"/>
-        <text x="{{.X}}" y="{{.ValueY}}" font-size="13" font-weight="700" fill="#fff"
+    {{range .Markers}}
+      <g class="fp-device{{if not .Placed}} fp-edit-only{{end}}" data-ain="{{.AIN}}"
+         data-x="{{.X}}" data-y="{{.Y}}" transform="translate({{.X}} {{.Y}})">
+        <circle r="26" fill="{{.Colour}}" opacity="0.16"/>
+        <circle r="19" fill="{{.Colour}}"/>
+        <text y="5" font-size="13" font-weight="700" fill="#fff"
               text-anchor="middle" font-family="Inter, sans-serif">{{.Value}}</text>
-        <text class="fp-name" x="{{.X}}" y="{{.LabelY}}" font-size="13"
+        <text class="fp-name" y="-28" font-size="13"
               text-anchor="middle" font-family="Inter, sans-serif">{{.Name}}</text>
-        {{if .Unit}}<text class="fp-label" x="{{.X}}" y="{{.UnitY}}" font-size="11"
+        {{if .Unit}}<text class="fp-label" y="36" font-size="11"
               text-anchor="middle" font-family="Inter, sans-serif">{{.Unit}}</text>{{end}}
       </g>
     {{end}}
   </svg>
 </div>
 
+{{if .Editable}}
+<script>
+  // Edit mode: markers follow the pointer in plan units, and Save sends every
+  // marker that sits above the strip. Nothing is stored before that.
+  (function () {
+    const svg = document.getElementById('fp-svg');
+    const edit = document.getElementById('fp-edit');
+    const save = document.getElementById('fp-save');
+    const cancel = document.getElementById('fp-cancel');
+    const bottom = Number(svg.dataset.planBottom);
+    let drag = null;
+
+    function toPlan(e) {
+      const p = svg.createSVGPoint();
+      p.x = e.clientX;
+      p.y = e.clientY;
+      return p.matrixTransform(svg.getScreenCTM().inverse());
+    }
+
+    edit.addEventListener('click', function () {
+      svg.classList.add('fp-editing');
+      svg.setAttribute('viewBox', svg.dataset.editBox);
+      edit.classList.add('is-hidden');
+      save.classList.remove('is-hidden');
+      cancel.classList.remove('is-hidden');
+    });
+    cancel.addEventListener('click', function () { location.reload(); });
+
+    svg.addEventListener('pointerdown', function (e) {
+      const g = e.target.closest('.fp-device');
+      if (!g || !svg.classList.contains('fp-editing')) { return; }
+      const p = toPlan(e);
+      drag = { g: g, dx: p.x - Number(g.dataset.x), dy: p.y - Number(g.dataset.y) };
+      g.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    svg.addEventListener('pointermove', function (e) {
+      if (!drag) { return; }
+      const p = toPlan(e);
+      const x = Math.round(p.x - drag.dx), y = Math.round(p.y - drag.dy);
+      drag.g.dataset.x = x;
+      drag.g.dataset.y = y;
+      drag.g.setAttribute('transform', 'translate(' + x + ' ' + y + ')');
+    });
+    function drop() { drag = null; }
+    svg.addEventListener('pointerup', drop);
+    svg.addEventListener('pointercancel', drop);
+
+    save.addEventListener('click', function () {
+      const positions = {};
+      for (const g of svg.querySelectorAll('.fp-device')) {
+        if (Number(g.dataset.y) < bottom) {
+          positions[g.dataset.ain] = { x: Number(g.dataset.x), y: Number(g.dataset.y) };
+        }
+      }
+      save.classList.add('is-loading');
+      fetch(save.dataset.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(positions),
+      }).then(function (r) {
+        if (r.ok) { location.reload(); return; }
+        return r.text().then(function (t) { throw new Error(t || r.statusText); });
+      }).catch(function (err) {
+        save.classList.remove('is-loading');
+        const n = document.createElement('div');
+        n.className = 'notification is-danger';
+        n.textContent = 'Saving failed: ' + err.message;
+        document.getElementById('fp-message').replaceChildren(n);
+      });
+    });
+  })();
+</script>
 {{end}}
+
+{{end}}
+{{end}}
+
+{{/* fp-upload posts the file as soon as one is chosen. Resetting afterwards
+     lets the same file be chosen again, which otherwise fires no change. */}}
+{{define "fp-upload"}}
+<form hx-post="{{.API}}floorplan" hx-encoding="multipart/form-data" hx-trigger="change"
+      hx-target="#fp-message" hx-on::after-request="this.reset()">
+  <div class="file is-small">
+    <label class="file-label">
+      <input class="file-input" type="file" name="plan" accept=".sh3d,.svg,.png,.jpg,.jpeg,.gif">
+      <span class="file-cta"><span class="file-label">Upload</span></span>
+    </label>
+  </div>
+</form>
+{{end}}
+
+{{define "fp-edit"}}
+<div class="buttons are-small">
+  <button type="button" class="button mb-0" id="fp-edit">Edit</button>
+  <button type="button" class="button is-primary is-hidden mb-0" id="fp-save" data-url="{{.API}}positions">Save</button>
+  <button type="button" class="button is-hidden mb-0" id="fp-cancel">Cancel</button>
+</div>
 {{end}}

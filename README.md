@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.9.0-blue)
+![version](https://img.shields.io/badge/version-0.10.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -49,9 +49,10 @@ is no separate exporter to run and the credentials live in one place. The page
 shows the live reading; the same reading is published at `/metrics` for
 Prometheus to keep as history.
 
-The floor plan above is the outer wall, rooms, interior walls and doors as SVG
-geometry, with devices placed by AIN and showing their live reading. It comes
-from a JSON file, so redrawing the flat does not mean recompiling.
+The floor plan above shows every device at its spot with its live reading. The
+flat is a SweetHome3D drawing or any SVG or picture of it, uploaded on the
+page, or a hand-traced JSON file, and devices are placed by dragging them in
+edit mode, so redrawing the flat never means recompiling.
 
 ## Installing
 
@@ -66,12 +67,12 @@ sudo systemctl enable --now dragon-dash
 ```
 
 The package installs a hardened systemd unit that runs as a dedicated
-unprivileged user with the whole filesystem read-only. It needs no writable path
-at all, because the app never writes: configuration is read-only and the history
-lives in Prometheus. `CAP_NET_BIND_SERVICE` is granted so ports 80 and 443
-work without root.
+unprivileged user with the filesystem read-only except for one directory,
+`/var/lib/dragon-dash`, which holds an uploaded floor plan and the device
+positions. Configuration is read-only and the history lives in Prometheus.
+`CAP_NET_BIND_SERVICE` is granted so ports 80 and 443 work without root.
 
-dragon-dash stores nothing itself, so a full deployment is three services:
+dragon-dash keeps no history itself, so a full deployment is three services:
 node_exporter and dragon-dash's own `/metrics` are scraped by Prometheus, and
 dragon-dash queries Prometheus back to draw the pages. Both exporters are
 packaged for aarch64, so none of it needs containers. `deploy/` also holds a

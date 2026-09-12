@@ -16,6 +16,10 @@ services:
       - .env
     environment:
       DD_CORE_PROMETHEUS_URL: http://prometheus:9090
+      DD_CORE_DATA_DIR: /var/lib/dragon-dash
+    volumes:
+      # Uploaded floor plans and device positions.
+      - ./data/dragon-dash:/var/lib/dragon-dash
     ports:
       # Port 80 is a mapping, not a privilege: the process listens on 8080
       # inside the container and never needs root or CAP_NET_BIND_SERVICE.

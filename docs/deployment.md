@@ -69,16 +69,23 @@ library beyond what a bare system already has.
 /usr/lib/systemd/system/dragon-dash.service   the unit, shipped disabled
 /usr/share/dragon-dash/dragon-dash.env.example the seed configuration
 /etc/dragon-dash/dragon-dash.env              0640 root:dragon-dash, seeded on first install
+/var/lib/dragon-dash/                         0700 dragon-dash, created by systemd on start
 ```
 
 The post-install creates the `dragon-dash` system user, seeds the configuration only when there is
 not one already (an upgrade must never drop credentials) and leaves the unit disabled, because a
 dashboard with no FRITZ!Box credentials and no Prometheus address is not worth starting.
 
-The unit is hardened further than most, and can be, because **the app writes nothing**.
-Configuration is read-only by design and every metric lives in Prometheus, so `ProtectSystem=strict`
-needs no `ReadWritePaths` exception at all. The one capability granted is `CAP_NET_BIND_SERVICE`,
-which is what lets an unprivileged process answer on ports 80 and 443.
+The unit is hardened further than most, and can be, because **the app writes almost nothing**.
+Configuration is read-only by design and every metric lives in Prometheus. The one writable path is
+`/var/lib/dragon-dash`, from `StateDirectory=`, where an uploaded floor plan and device positions
+are kept (see [floorplan.md](floorplan.md)). `ProtectSystem=strict` keeps everything else read-only.
+The one capability granted is `CAP_NET_BIND_SERVICE`, which is what lets an unprivileged process
+answer on ports 80 and 443.
+
+`StateDirectory=` arrived in 0.10.0. A package upgrade brings the new unit; swapping only the binary
+does not, and until the unit is updated (and `systemctl daemon-reload` run) the floor plan page
+simply offers no upload and no edit mode.
 
 ## Configuration on a server
 
