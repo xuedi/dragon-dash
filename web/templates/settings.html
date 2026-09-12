@@ -39,6 +39,20 @@
   {{end}}
 </div>
 {{end}}
+
+{{range .Links}}
+<div class="box">
+  <div class="level mb-3">
+    <div class="level-left"><h2 class="title is-6 mb-0">{{.Title}}</h2></div>
+    <div class="level-right"><span class="tag is-info is-light">link, {{.Mode}}</span></div>
+  </div>
+  <table class="table is-fullwidth">
+    <tbody>
+      {{range .Fields}}{{template "settings-field" .}}{{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
 {{end}}
 
 {{define "settings-field"}}

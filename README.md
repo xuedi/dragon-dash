@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.8.0-blue)
+![version](https://img.shields.io/badge/version-0.9.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -100,6 +100,10 @@ Setting `DD_CORE_TLS_CERT` and `DD_CORE_TLS_KEY` turns on HTTPS on
 `DD_CORE_TLS_ADDR`. The plain port then redirects there, except `/metrics`,
 which Prometheus keeps scraping over HTTP. Details in
 [`docs/deployment.md`](docs/deployment.md#https).
+
+`DD_LINKS` adds navbar entries for other sites, a wiki or a Grafana, shown below
+the navbar in an iframe, optionally through a built-in reverse proxy so they
+share the dashboard's origin. Details in [`docs/links.md`](docs/links.md).
 
 ## Building and running from source
 

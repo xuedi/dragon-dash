@@ -79,11 +79,18 @@ as a `system.PageTop`, not in the template, so a page cannot drift into a bespok
 Action order, left to right: state-changing buttons first, filters next, navigation last. On a
 chart page that means the sample count, then the range selector.
 
+A link page is the one exception to this shape: the navbar, then an iframe spanning the rest of the
+window, with no section, container or sidebar. See [links.md](links.md).
+
 ## Custom CSS
 
 Ten lines, all of them Bulma's own custom properties (`--bulma-family-primary`, `--bulma-radius`,
 `--bulma-body-background-color`). There is not a single selector override, so a Bulma upgrade cannot
 silently break the layout.
+
+The link page's iframe carries its height inline, the viewport minus `--bulma-navbar-height`,
+because no Bulma class sizes an element that way. It is a single element with a single inline style,
+not a rule.
 
 Spacing comes from `section`, `container` and `columns`; emphasis comes from helper classes
 (`has-text-weight-semibold`, `has-text-link`, `is-size-7`, `has-text-grey`). If the answer to "which

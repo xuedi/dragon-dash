@@ -36,8 +36,8 @@
     </div>
     <div class="navbar-menu is-active">
       <div class="navbar-start">
-        {{range .Systems}}
-          <a class="navbar-item {{if .Active}}has-text-weight-semibold has-text-link{{end}}" href="/s/{{.ID}}/">{{.Title}}</a>
+        {{range .Top}}
+          <a class="navbar-item {{if .Active}}has-text-weight-semibold has-text-link{{end}}" href="{{.Href}}"{{if .NewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
         {{end}}
       </div>
       <div class="navbar-end">
@@ -54,6 +54,37 @@
   </div>
 </nav>
 
+{{if .Frame}}
+{{/* No Bulma class sizes an element to the viewport minus the navbar, so this
+     one element carries its height inline rather than adding a rule. */}}
+<iframe id="dd-frame" src="{{.Frame}}" title="{{.PageTitle}}" class="is-block"
+        style="width:100%;height:calc(100dvh - var(--bulma-navbar-height));border:0"></iframe>
+{{if .FrameFrom}}
+<script>
+  // The proxied site shares this origin, so its location can be read and
+  // mirrored into the address bar. That is what makes a reload or a bookmark
+  // land on the same page rather than on the site's start page.
+  (function () {
+    const frame = document.getElementById('dd-frame');
+    const from = {{.FrameFrom}}, to = {{.FrameTo}}, title = {{.PageTitle}};
+    frame.addEventListener('load', function () {
+      let loc, inner;
+      try {
+        loc = frame.contentWindow.location;
+        inner = frame.contentDocument.title;
+      } catch (e) {
+        return;
+      }
+      if (!loc.pathname.startsWith(from)) {
+        return;
+      }
+      history.replaceState(null, '', to + loc.pathname.slice(from.length) + loc.search + loc.hash);
+      document.title = (inner ? inner + ' · ' : '') + title + ' · dragon-dash';
+    });
+  })();
+</script>
+{{end}}
+{{else}}
 <section class="section">
   <div class="container">
     <div class="columns">
@@ -80,6 +111,7 @@
     </div>
   </div>
 </section>
+{{end}}
 
 <script>
   // Bulma defines its whole palette twice, under prefers-color-scheme and

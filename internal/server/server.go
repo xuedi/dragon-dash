@@ -12,9 +12,11 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"dragon-dash/internal/config"
+	"dragon-dash/internal/links"
 	"dragon-dash/internal/system"
 	"dragon-dash/internal/version"
 	"dragon-dash/web"
@@ -53,15 +55,20 @@ type Server struct {
 	tmpl  *template.Template
 	mux   *http.ServeMux
 	files []string
+	links []links.Link
 }
 
 func New(cfg *config.Config, log *slog.Logger, files []string) (*Server, error) {
+	ls, err := links.Parse(cfg)
+	if err != nil {
+		return nil, err
+	}
 	tmpl, err := template.New("").Funcs(system.FuncMap()).
 		ParseFS(web.Templates, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
-	s := &Server{cfg: cfg, log: log, tmpl: tmpl, mux: http.NewServeMux(), files: files}
+	s := &Server{cfg: cfg, log: log, tmpl: tmpl, mux: http.NewServeMux(), files: files, links: ls}
 	s.routes()
 	return s, nil
 }
@@ -79,6 +86,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.mux.HandleFunc("GET /s/{system}/{$}", s.handleSystemDefault)
 	s.mux.HandleFunc("GET /s/{system}/{slug}", s.handleSystemPage)
+	s.mux.HandleFunc("GET /l/{link}/{rest...}", s.handleLink)
+
+	// Every method, not only GET: saving a wiki page is a POST.
+	for _, l := range s.links {
+		if l.Mode == links.ModeProxy {
+			s.mux.Handle(l.Prefix()+"/", l.Handler(s.log.With("link", l.ID)))
+		}
+	}
 
 	// Each system gets its own subtree for fragments and JSON.
 	for _, sys := range system.All() {
@@ -116,8 +131,49 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/s/"+en[0].ID()+"/", http.StatusFound)
 		return
 	}
-	// Every system switched off: send the user somewhere useful rather than 404.
+	for _, l := range s.links {
+		if l.Mode != links.ModeTab {
+			http.Redirect(w, r, l.Page(), http.StatusFound)
+			return
+		}
+	}
+	// Nothing to show: send the user somewhere useful rather than 404.
 	http.Redirect(w, r, "/settings", http.StatusFound)
+}
+
+func (s *Server) findLink(id string) *links.Link {
+	for i := range s.links {
+		if s.links[i].ID == id {
+			return &s.links[i]
+		}
+	}
+	return nil
+}
+
+func (s *Server) handleLink(w http.ResponseWriter, r *http.Request) {
+	l := s.findLink(r.PathValue("link"))
+	if l == nil || l.Mode == links.ModeTab {
+		http.NotFound(w, r)
+		return
+	}
+	// The escaped path, not the path value, so an encoded ? or / in a wiki page
+	// name survives the trip into the iframe source.
+	rest := strings.TrimPrefix(r.URL.EscapedPath(), l.Page())
+	if rest != "" && l.Mode != links.ModeProxy {
+		http.NotFound(w, r)
+		return
+	}
+
+	d := s.layout(r, nil, "")
+	for i := range d.Top {
+		d.Top[i].Active = d.Top[i].Href == l.Page()
+	}
+	d.PageTitle = l.Title
+	d.Frame = l.Src(rest, r.URL.RawQuery)
+	if l.Mode == links.ModeProxy {
+		d.FrameFrom, d.FrameTo = l.Prefix()+"/", l.Page()
+	}
+	s.render(w, d)
 }
 
 func (s *Server) handleSystemDefault(w http.ResponseWriter, r *http.Request) {
@@ -171,9 +227,10 @@ type navLink struct {
 	Active      bool
 }
 
-type sysLink struct {
-	ID, Title string
-	Active    bool
+// topLink is one navbar entry, a system or a link.
+type topLink struct {
+	Href, Title    string
+	Active, NewTab bool
 }
 
 type layoutData struct {
@@ -181,18 +238,25 @@ type layoutData struct {
 	Theme          string
 	PageTitle      string
 	ActiveTitle    string
-	Systems        []sysLink
+	Top            []topLink
 	Nav            []navLink
 	SettingsActive bool
 	Body           template.HTML
 	Error          string
+	// Frame replaces the whole content area with an iframe. FrameFrom and
+	// FrameTo are set for a same-origin frame, whose location is mirrored into
+	// the address bar.
+	Frame, FrameFrom, FrameTo string
 }
 
 func (s *Server) layout(r *http.Request, active system.System, slug string) layoutData {
 	d := layoutData{Version: version.Version, Theme: theme(r)}
 	for _, sys := range s.enabled() {
 		isActive := active != nil && sys.ID() == active.ID()
-		d.Systems = append(d.Systems, sysLink{ID: sys.ID(), Title: sys.Title(), Active: isActive})
+		d.Top = append(d.Top, topLink{Href: "/s/" + sys.ID() + "/", Title: sys.Title(), Active: isActive})
+	}
+	for _, l := range s.links {
+		d.Top = append(d.Top, topLink{Href: l.Href(), Title: l.Title, NewTab: l.Mode == links.ModeTab})
 	}
 	if active == nil {
 		return d
@@ -244,17 +308,23 @@ type settingsSystem struct {
 	Fields    []settingsField
 }
 
+type settingsLink struct {
+	Title, Mode string
+	Fields      []settingsField
+}
+
 type settingsData struct {
 	Core    []settingsField
 	Systems []settingsSystem
+	Links   []settingsLink
 	Files   []string
 }
 
 const redacted = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
 
-// coreField shows unset as the grey placeholder when one is given, otherwise as
-// the "not set" warning.
-func (s *Server) coreField(key, label, help, unset string) settingsField {
+// field shows unset as the grey placeholder when one is given, otherwise as the
+// "not set" warning.
+func (s *Server) field(key, label, help, unset string) settingsField {
 	v := s.cfg.Get(key)
 	f := settingsField{
 		Label:   label,
@@ -274,13 +344,35 @@ func (s *Server) settingsData() settingsData {
 	d := settingsData{
 		Files: s.files,
 		Core: []settingsField{
-			s.coreField(prometheusURLKey, "Prometheus URL",
+			s.field(prometheusURLKey, "Prometheus URL",
 				"Every metric on every page is read from here.", ""),
-			s.coreField(tlsCertKey, "TLS certificate",
+			s.field(tlsCertKey, "TLS certificate",
 				"HTTPS is on when both the certificate and the key are set.", "HTTPS is off"),
-			s.coreField(tlsKeyKey, "TLS key",
+			s.field(tlsKeyKey, "TLS key",
 				"Readable by the service user and root, nobody else.", "HTTPS is off"),
+			s.field(links.ListKey, "Navbar links",
+				"IDs of the extra navbar entries, in order. Each needs its own URL.", "none"),
 		},
+	}
+	for _, l := range s.links {
+		var urlHelp string
+		switch l.Mode {
+		case links.ModeProxy:
+			urlHelp = "Forwarded from " + l.Prefix() + "/, so the site must generate its links under that path."
+		case links.ModeFrame:
+			urlHelp = "Loaded by the browser, so it must be reachable from the browser."
+		case links.ModeTab:
+			urlHelp = "Opened in a new tab."
+		}
+		d.Links = append(d.Links, settingsLink{
+			Title: l.Title,
+			Mode:  string(l.Mode),
+			Fields: []settingsField{
+				s.field(links.Key(l.ID, "url"), "URL", urlHelp, ""),
+				s.field(links.Key(l.ID, "title"), "Title", "The navbar label.", l.ID+"  (default)"),
+				s.field(links.Key(l.ID, "mode"), "Mode", "frame, proxy or tab.", string(links.ModeFrame)+"  (default)"),
+			},
+		})
 	}
 	for _, sys := range system.All() {
 		enabledKey := "system." + sys.ID() + ".enabled"

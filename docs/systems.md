@@ -3,6 +3,9 @@
 A **system** is one entry in the top navigation bar: Host, FritzHome, and whatever is added
 later. Systems are the unit of extension, and the shell has no knowledge of any individual one.
 
+The navbar can also carry links to other sites. Those are configuration, not systems, and are
+described in [links.md](links.md).
+
 ## The contract
 
 `internal/system/system.go` defines it:
