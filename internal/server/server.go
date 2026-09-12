@@ -245,24 +245,41 @@ type settingsSystem struct {
 }
 
 type settingsData struct {
-	Prometheus settingsField
-	Systems    []settingsSystem
-	Files      []string
+	Core    []settingsField
+	Systems []settingsSystem
+	Files   []string
 }
 
 const redacted = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
 
+// coreField shows unset as the grey placeholder when one is given, otherwise as
+// the "not set" warning.
+func (s *Server) coreField(key, label, help, unset string) settingsField {
+	v := s.cfg.Get(key)
+	f := settingsField{
+		Label:   label,
+		Help:    help,
+		EnvName: config.EnvName(key),
+		Value:   v,
+		Source:  s.cfg.Source(key),
+		Set:     v != "",
+	}
+	if !f.Set {
+		f.Value = unset
+	}
+	return f
+}
+
 func (s *Server) settingsData() settingsData {
-	promKey := prometheusURLKey
 	d := settingsData{
 		Files: s.files,
-		Prometheus: settingsField{
-			Label:   "Prometheus URL",
-			Help:    "Every metric on every page is read from here.",
-			EnvName: config.EnvName(promKey),
-			Value:   s.cfg.Get(promKey),
-			Source:  s.cfg.Source(promKey),
-			Set:     s.cfg.Has(promKey),
+		Core: []settingsField{
+			s.coreField(prometheusURLKey, "Prometheus URL",
+				"Every metric on every page is read from here.", ""),
+			s.coreField(tlsCertKey, "TLS certificate",
+				"HTTPS is on when both the certificate and the key are set.", "HTTPS is off"),
+			s.coreField(tlsKeyKey, "TLS key",
+				"Readable by the service user and root, nobody else.", "HTTPS is off"),
 		},
 	}
 	for _, sys := range system.All() {

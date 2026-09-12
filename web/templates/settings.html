@@ -13,15 +13,7 @@
   <h2 class="title is-6">Core</h2>
   <table class="table is-fullwidth">
     <tbody>
-      <tr>
-        <td style="width:16rem"><strong>{{.Prometheus.Label}}</strong><br>
-          <code class="is-size-7">{{.Prometheus.EnvName}}</code></td>
-        <td>
-          {{if .Prometheus.Set}}{{.Prometheus.Value}}{{else}}<span class="tag is-warning">not set</span>{{end}}
-          {{if .Prometheus.Source}}<span class="tag is-light ml-2">{{.Prometheus.Source}}</span>{{end}}
-          <p class="help">{{.Prometheus.Help}}</p>
-        </td>
-      </tr>
+      {{range .Core}}{{template "settings-field" .}}{{end}}
     </tbody>
   </table>
 </div>
@@ -39,16 +31,7 @@
   {{if .Fields}}
   <table class="table is-fullwidth">
     <tbody>
-      {{range .Fields}}
-      <tr>
-        <td style="width:16rem"><strong>{{.Label}}</strong><br><code class="is-size-7">{{.EnvName}}</code></td>
-        <td>
-          {{if .Set}}{{.Value}}{{else if .Value}}<span class="has-text-grey">{{.Value}}</span>{{else}}<span class="tag is-warning">not set</span>{{end}}
-          {{if .Source}}<span class="tag is-light ml-2">{{.Source}}</span>{{end}}
-          {{if .Help}}<p class="help">{{.Help}}</p>{{end}}
-        </td>
-      </tr>
-      {{end}}
+      {{range .Fields}}{{template "settings-field" .}}{{end}}
     </tbody>
   </table>
   {{else}}
@@ -56,4 +39,15 @@
   {{end}}
 </div>
 {{end}}
+{{end}}
+
+{{define "settings-field"}}
+<tr>
+  <td style="width:16rem"><strong>{{.Label}}</strong><br><code class="is-size-7">{{.EnvName}}</code></td>
+  <td>
+    {{if .Set}}{{.Value}}{{else if .Value}}<span class="has-text-grey">{{.Value}}</span>{{else}}<span class="tag is-warning">not set</span>{{end}}
+    {{if .Source}}<span class="tag is-light ml-2">{{.Source}}</span>{{end}}
+    {{if .Help}}<p class="help">{{.Help}}</p>{{end}}
+  </td>
+</tr>
 {{end}}

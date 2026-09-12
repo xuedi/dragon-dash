@@ -26,6 +26,7 @@ Every variable starts with `DD_`. A dotted key maps to it by uppercasing and rep
 
 ```
 core.prometheus_url                DD_CORE_PROMETHEUS_URL
+core.tls_cert                      DD_CORE_TLS_CERT
 system.fritzhome.password          DD_SYSTEM_FRITZHOME_PASSWORD
 system.dragon.enabled              DD_SYSTEM_DRAGON_ENABLED
 ```

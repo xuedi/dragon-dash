@@ -78,13 +78,52 @@ dashboard with no FRITZ!Box credentials and no Prometheus address is not worth s
 The unit is hardened further than most, and can be, because **the app writes nothing**.
 Configuration is read-only by design and every metric lives in Prometheus, so `ProtectSystem=strict`
 needs no `ReadWritePaths` exception at all. The one capability granted is `CAP_NET_BIND_SERVICE`,
-which is what lets an unprivileged process answer on port 80.
+which is what lets an unprivileged process answer on ports 80 and 443.
 
 ## Configuration on a server
 
 Everything is in `/etc/dragon-dash/dragon-dash.env`, in the same `DD_` variables the development
 `.env.local` uses. `DD_CORE_ADDR` decides the port, so moving the dashboard to another port is an
 edit and a restart, not a rebuild. See [configuration.md](configuration.md).
+
+The committed defaults stay on high loopback ports, `127.0.0.1:9494` and `127.0.0.1:9495` for
+HTTPS, so a development checkout never collides with anything else on the machine. Ports 80 and
+443 only ever appear in the server's env file.
+
+## HTTPS
+
+dragon-dash terminates TLS itself, there is no proxy to run. Set both paths and it serves the
+dashboard on `DD_CORE_TLS_ADDR` as well:
+
+```ini
+DD_CORE_ADDR=:80
+DD_CORE_TLS_ADDR=:443
+DD_CORE_TLS_CERT=/etc/dragon-dash/tls/dragon-dash.crt
+DD_CORE_TLS_KEY=/etc/dragon-dash/tls/dragon-dash.key
+```
+
+With TLS on, the plain listener keeps running but redirects every request to HTTPS, **except
+`/metrics`**. Prometheus scrapes that over plain loopback HTTP as before, so its configuration does
+not change and it never has to trust the certificate. Setting only one of the two paths refuses to
+start rather than quietly staying on HTTP.
+
+The certificate comes from whatever CA the browsers on the network already trust, for a LAN host
+name typically a private one. Every device that opens the dashboard needs that CA imported, which
+is also why there is **no `Strict-Transport-Security` header**: a long-lived pin on a LAN host name
+would lock out any device without the CA, and every other plain-HTTP service on the same name.
+
+The service user reads the pair, nobody else reads the key:
+
+```
+/etc/dragon-dash/tls/                 0750 root:dragon-dash
+/etc/dragon-dash/tls/dragon-dash.crt  0644 root:dragon-dash
+/etc/dragon-dash/tls/dragon-dash.key  0640 root:dragon-dash
+```
+
+The pair is read once at startup, like the rest of the configuration, so a renewed certificate
+takes effect on the next restart. The unit needs no change: `ProtectSystem=strict` still allows
+reading `/etc`, and `CAP_NET_BIND_SERVICE` covers port 443 as it does port 80. The Settings page
+shows which certificate and key are in use.
 
 ## The other half: Prometheus
 
@@ -96,7 +135,7 @@ flowchart LR
     NE[node-exporter :9100] -->|scrape| P[(Prometheus :9090)]
     DD[dragon-dash /metrics] -->|scrape| P
     FB[FRITZ!Box AHA API] -->|poll| DD
-    P -->|query| DD2[dragon-dash pages :80]
+    P -->|query| DD2[dragon-dash pages :80 / :443]
 ```
 
 dragon-dash appears twice on purpose. It polls the FRITZ!Box and republishes what it finds on

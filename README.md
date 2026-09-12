@@ -1,6 +1,6 @@
 # dragon-dash
 
-![version](https://img.shields.io/badge/version-0.7.1-blue)
+![version](https://img.shields.io/badge/version-0.8.0-blue)
 ![licence](https://img.shields.io/badge/licence-EUPL--1.2-brightgreen)
 
 A single-binary web dashboard for a home server. One tab per *system*: server
@@ -68,8 +68,8 @@ sudo systemctl enable --now dragon-dash
 The package installs a hardened systemd unit that runs as a dedicated
 unprivileged user with the whole filesystem read-only. It needs no writable path
 at all, because the app never writes: configuration is read-only and the history
-lives in Prometheus. `CAP_NET_BIND_SERVICE` is granted so `DD_CORE_ADDR=:80`
-works without root.
+lives in Prometheus. `CAP_NET_BIND_SERVICE` is granted so ports 80 and 443
+work without root.
 
 dragon-dash stores nothing itself, so a full deployment is three services:
 node_exporter and dragon-dash's own `/metrics` are scraped by Prometheus, and
@@ -95,6 +95,11 @@ shows what is set and where each value came from, but nothing writes it back.
 With no write path there is no form to protect, and that is what makes a LAN
 tool without authentication defensible. Full key list in
 [`docs/configuration.md`](docs/configuration.md).
+
+Setting `DD_CORE_TLS_CERT` and `DD_CORE_TLS_KEY` turns on HTTPS on
+`DD_CORE_TLS_ADDR`. The plain port then redirects there, except `/metrics`,
+which Prometheus keeps scraping over HTTP. Details in
+[`docs/deployment.md`](docs/deployment.md#https).
 
 ## Building and running from source
 

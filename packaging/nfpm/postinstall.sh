@@ -46,6 +46,7 @@ dragon-dash is installed. The systemd unit is present but disabled. To finish:
 
   1. edit $CONF
        DD_CORE_ADDR           where to listen, :80 for the default HTTP port
+       DD_CORE_TLS_*          certificate, key and :443 to serve HTTPS as well
        DD_CORE_PROMETHEUS_URL where the metrics are read from
        DD_SYSTEM_FRITZHOME_*  FRITZ!Box host and credentials
   2. sudo systemctl enable --now dragon-dash
