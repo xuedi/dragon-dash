@@ -179,18 +179,6 @@ func (h *Host) Render(slug string, r *http.Request) (template.HTML, error) {
 
 func (h *Host) renderChart(c chart) (template.HTML, error) {
 	top := system.PageTop{Title: c.Title}
-	if len(c.Series) > 0 {
-		// Four queries will not fit in the infobar, so the bar carries the
-		// count and the queries themselves hang off the tooltip.
-		qs := make([]string, 0, len(c.Series))
-		for _, cs := range c.Series {
-			qs = append(qs, cs.Query)
-		}
-		top.Infof(`<span class="has-text-grey is-size-7" title="%s">%d queries</span>`,
-			template.HTMLEscapeString(strings.Join(qs, "\n")), len(c.Series))
-	} else {
-		top.Infof(`<code class="is-size-7">%s</code>`, template.HTMLEscapeString(c.Query))
-	}
 	top.Actionf(`<span id="dd-status" class="tag is-light">loading</span>`)
 	top.Actionf(`<div class="select is-small">
       <select id="dd-range" onchange="ddLoad()">

@@ -5,4 +5,4 @@
 package version
 
 // Version follows semantic versioning, pre-1.0.
-const Version = "0.12.1"
+const Version = "0.12.2"
